@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
+import ElectricBorder from '../components/ElectricBorder';
 import { Play, Pause, RotateCcw, Coffee, Brain } from 'lucide-react';
 
 const FocusPage = () => {
@@ -96,8 +97,8 @@ const FocusPage = () => {
                         <button
                             onClick={() => switchSession('focus')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition ${sessionType === 'focus'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-card border border-border hover:bg-muted'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-card border border-border hover:bg-muted'
                                 }`}
                         >
                             <Brain className="w-4 h-4" />
@@ -106,8 +107,8 @@ const FocusPage = () => {
                         <button
                             onClick={() => switchSession('short-break')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition ${sessionType === 'short-break'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-card border border-border hover:bg-muted'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-card border border-border hover:bg-muted'
                                 }`}
                         >
                             <Coffee className="w-4 h-4" />
@@ -116,8 +117,8 @@ const FocusPage = () => {
                         <button
                             onClick={() => switchSession('long-break')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition ${sessionType === 'long-break'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-card border border-border hover:bg-muted'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-card border border-border hover:bg-muted'
                                 }`}
                         >
                             <Coffee className="w-4 h-4" />
@@ -126,42 +127,102 @@ const FocusPage = () => {
                     </div>
 
                     {/* Timer Display */}
-                    <div className="bg-card border border-border rounded-2xl p-12 mb-8 text-center shadow-lg">
-                        {/* Progress Ring */}
-                        <div className="relative w-64 h-64 mx-auto mb-8">
-                            <svg className="transform -rotate-90 w-64 h-64">
-                                <circle
-                                    cx="128"
-                                    cy="128"
-                                    r="120"
-                                    stroke="currentColor"
-                                    strokeWidth="8"
-                                    fill="none"
-                                    className="text-muted"
-                                />
-                                <circle
-                                    cx="128"
-                                    cy="128"
-                                    r="120"
-                                    stroke="currentColor"
-                                    strokeWidth="8"
-                                    fill="none"
-                                    strokeDasharray={`${2 * Math.PI * 120}`}
-                                    strokeDashoffset={`${2 * Math.PI * 120 * (1 - progress / 100)}`}
-                                    className="text-primary transition-all duration-1000"
-                                    strokeLinecap="round"
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-6xl font-bold text-foreground font-mono">
-                                    {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                    {isRunning ? (
+                        <ElectricBorder
+                            color={sessionType === 'focus' ? 'oklch(0.5054 0.1905 27.5181)' : 'oklch(0.4732 0.1247 46.2007)'}
+                            speed={1.2}
+                            chaos={0.15}
+                            borderRadius={24}
+                            thickness={3}
+                        >
+                            <div className="bg-card border border-border rounded-2xl p-12 mb-8 text-center shadow-lg">
+                                {/* Progress Ring */}
+                                <div className="relative w-64 h-64 mx-auto mb-8">
+                                    <svg className="transform -rotate-90 w-64 h-64">
+                                        <circle
+                                            cx="128"
+                                            cy="128"
+                                            r="120"
+                                            stroke="currentColor"
+                                            strokeWidth="8"
+                                            fill="none"
+                                            className="text-muted"
+                                        />
+                                        <circle
+                                            cx="128"
+                                            cy="128"
+                                            r="120"
+                                            stroke="currentColor"
+                                            strokeWidth="8"
+                                            fill="none"
+                                            strokeDasharray={`${2 * Math.PI * 120}`}
+                                            strokeDashoffset={`${2 * Math.PI * 120 * (1 - progress / 100)}`}
+                                            className="text-primary transition-all duration-1000"
+                                            strokeLinecap="round"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="text-6xl font-bold text-foreground font-mono">
+                                            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Control Buttons */}
+                                <div className="flex gap-4 justify-center">
+                                    <button
+                                        onClick={handlePause}
+                                        className="flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:opacity-90 transition"
+                                    >
+                                        <Pause className="w-5 h-5" />
+                                        Pause
+                                    </button>
+                                    <button
+                                        onClick={handleReset}
+                                        className="flex items-center gap-2 px-8 py-4 border border-border rounded-lg text-accent font-semibold text-lg bg-secondary hover:bg-secondary-foreground hover:text-secondary transition"
+                                    >
+                                        <RotateCcw className="w-5 h-5" />
+                                        Reset
+                                    </button>
                                 </div>
                             </div>
-                        </div>
+                        </ElectricBorder>
+                    ) : (
+                        <div className="bg-card border border-border rounded-2xl p-12 mb-8 text-center shadow-lg">
+                            {/* Progress Ring */}
+                            <div className="relative w-64 h-64 mx-auto mb-8">
+                                <svg className="transform -rotate-90 w-64 h-64">
+                                    <circle
+                                        cx="128"
+                                        cy="128"
+                                        r="120"
+                                        stroke="currentColor"
+                                        strokeWidth="8"
+                                        fill="none"
+                                        className="text-muted"
+                                    />
+                                    <circle
+                                        cx="128"
+                                        cy="128"
+                                        r="120"
+                                        stroke="currentColor"
+                                        strokeWidth="8"
+                                        fill="none"
+                                        strokeDasharray={`${2 * Math.PI * 120}`}
+                                        strokeDashoffset={`${2 * Math.PI * 120 * (1 - progress / 100)}`}
+                                        className="text-primary transition-all duration-1000"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-6xl font-bold text-foreground font-mono">
+                                        {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                                    </div>
+                                </div>
+                            </div>
 
-                        {/* Control Buttons */}
-                        <div className="flex gap-4 justify-center">
-                            {!isRunning ? (
+                            {/* Control Buttons */}
+                            <div className="flex gap-4 justify-center">
                                 <button
                                     onClick={handleStart}
                                     className="flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:opacity-90 transition"
@@ -169,24 +230,16 @@ const FocusPage = () => {
                                     <Play className="w-5 h-5" />
                                     Start
                                 </button>
-                            ) : (
                                 <button
-                                    onClick={handlePause}
-                                    className="flex items-center gap-2 px-8 py-4 bg-secondary text-secondary-foreground rounded-lg font-semibold text-lg hover:opacity-90 transition"
+                                    onClick={handleReset}
+                                    className="flex items-center gap-2 px-8 py-4 hover:bg-popover hover:text-popover-foreground border border-border rounded-lg text-accent font-semibold text-lg bg-secondary text-secondary-foreground transition"
                                 >
-                                    <Pause className="w-5 h-5" />
-                                    Pause
+                                    <RotateCcw className="w-5 h-5" />
+                                    Reset
                                 </button>
-                            )}
-                            <button
-                                onClick={handleReset}
-                                className="flex items-center gap-2 px-8 py-4 border border-border rounded-lg font-semibold text-lg hover:bg-muted transition"
-                            >
-                                <RotateCcw className="w-5 h-5" />
-                                Reset
-                            </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Session Stats */}
                     <div className="grid grid-cols-2 gap-6">
@@ -201,25 +254,6 @@ const FocusPage = () => {
                             <div className="text-4xl font-bold text-foreground">{sessionsCompleted * 25}</div>
                             <div className="text-sm text-muted-foreground mt-1">Minutes today</div>
                         </div>
-                    </div>
-
-                    {/* Tips */}
-                    <div className="mt-8 bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
-                        <h3 className="font-semibold text-foreground mb-3">Pomodoro Tips</h3>
-                        <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li className="flex items-start gap-2">
-                                <span className="text-primary">•</span>
-                                <span>Work for 25 minutes with full focus, then take a 5-minute break</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-primary">•</span>
-                                <span>After 4 focus sessions, take a longer 15-minute break</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-primary">•</span>
-                                <span>Eliminate all distractions during focus sessions</span>
-                            </li>
-                        </ul>
                     </div>
                 </div>
             </main>

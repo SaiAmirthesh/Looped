@@ -1,16 +1,64 @@
-# React + Vite
+## Looped — Gamified Productivity Web App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Looped is a gamified productivity web application that helps users build better daily routines by turning habits, focus sessions, and goals into an engaging game-like experience. Users earn XP, track skills, maintain streaks, and visualize personal growth over time.
 
-Currently, two official plugins are available:
+The project is built as part of a Web Programming academic project, with strong emphasis on UI/UX design, authentication, and full-stack integration.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### ✨ Key Features
 
-## React Compiler
+### 🔐 Authentication
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Secure user login and registration using Supabase Auth
+- Session-based access control
 
-## Expanding the ESLint configuration
+#### 🏠 Dashboard
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Player stats (XP, level)
+- Daily habits overview
+- Active quests
+- Skill statistics visualization
+
+### Habit Tracking
+
+- Create and manage daily habits
+- Track consistency and streaks
+
+### Gamified XP rewards
+
+### Focus Mode (Pomodoro)
+
+- Focus and break sessions
+- Visual feedback using animated electric borders
+- Encourages deep work and balance
+
+### Skill System
+
+- Skills like Focus, Discipline, Health, Learning, Consistency
+- Radar (web) chart visualization
+- Calendar & Streaks
+- Daily activity tracking
+- XP gained per day
+- Growth visualization
+
+### Modern UI/UX
+
+- Theme-based design (violet + orange accents)
+- Animated backgrounds and micro-interactions
+- Fully responsive layout
+
+### Tech Stack
+
+#### Frontend
+
+- React (JSX)
+- Tailwind CSS
+- Framer Motion (animations)
+- Recharts (data visualization)
+- Custom UI components
+
+#### Backend
+
+- Supabase
+- Authentication
+- PostgreSQL database
+- Secure API access

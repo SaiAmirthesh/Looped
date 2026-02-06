@@ -88,7 +88,7 @@ const QuestsPage = () => {
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-foreground">Quests</h1>
                         <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition mt-5">
-                            Add Quest
+                            <span className="size={20px}">+</span> Add Quest
                         </button>
                     </div>
                     <p className="text-muted-foreground">

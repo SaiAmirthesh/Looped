@@ -70,8 +70,13 @@ const SkillsPage = () => {
 
             <main className="flex-1 ml-10 p-8">
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-foreground mb-2">Skills</h1>
+                <div className="mb-8 ">
+                    <div className="flex items-center justify-between mb-4">    
+                        <h1 className="text-3xl font-bold text-foreground mb-2">Skills</h1>
+                        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition mt-5">
+                            <span className="size={20px}">+</span> Add Skill
+                        </button>
+                    </div>
                     <p className="text-muted-foreground">
                         Level up your skills by completing habits and quests
                     </p>

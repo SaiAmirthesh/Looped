@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import Navigation from '../components/Navigation';
 import QuestCard from '../components/QuestCard';
-import { Sword, CheckCircle } from 'lucide-react';
+import { Sword, CheckCircle, X, Plus } from 'lucide-react';
 
 const QuestsPage = () => {
     const [activeTab, setActiveTab] = useState('active');
-
-    const activeQuests = [
+    const [showModal, setShowModal] = useState(false);
+    const [quests, setQuests] = useState([
         {
             id: 1,
             title: 'Complete 7-day meditation streak',
@@ -14,7 +14,8 @@ const QuestsPage = () => {
             xpReward: 200,
             difficulty: 'medium',
             progress: 5,
-            total: 7
+            total: 7,
+            completed: false
         },
         {
             id: 2,
@@ -23,7 +24,8 @@ const QuestsPage = () => {
             xpReward: 500,
             difficulty: 'hard',
             progress: 1,
-            total: 3
+            total: 3,
+            completed: false
         },
         {
             id: 3,
@@ -32,7 +34,8 @@ const QuestsPage = () => {
             xpReward: 150,
             difficulty: 'easy',
             progress: 3,
-            total: 5
+            total: 5,
+            completed: false
         },
         {
             id: 4,
@@ -41,11 +44,9 @@ const QuestsPage = () => {
             xpReward: 300,
             difficulty: 'medium',
             progress: 4,
-            total: 10
+            total: 10,
+            completed: false
         },
-    ];
-
-    const completedQuests = [
         {
             id: 5,
             title: 'Start your journey',
@@ -64,16 +65,46 @@ const QuestsPage = () => {
             completed: true,
             completedDate: '2026-01-20'
         },
-        {
-            id: 7,
-            title: 'Consistency champion',
-            description: 'Complete all daily habits for 5 days straight',
-            xpReward: 250,
-            difficulty: 'hard',
-            completed: true,
-            completedDate: '2026-02-01'
-        },
-    ];
+    ]);
+
+    const [newQuest, setNewQuest] = useState({
+        title: '',
+        description: '',
+        xpReward: 100,
+        difficulty: 'easy'
+    });
+
+    const activeQuests = quests.filter(q => !q.completed);
+    const completedQuests = quests.filter(q => q.completed);
+
+    const handleAddQuest = (e) => {
+        e.preventDefault();
+        const quest = {
+            id: Date.now(),
+            ...newQuest,
+            xpReward: parseInt(newQuest.xpReward),
+            progress: 0,
+            total: 1,
+            completed: false
+        };
+        setQuests([...quests, quest]);
+        setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'easy' });
+        setShowModal(false);
+    };
+
+    const handleToggleQuest = (id) => {
+        setQuests(quests.map(quest =>
+            quest.id === id
+                ? { ...quest, completed: !quest.completed, completedDate: !quest.completed ? new Date().toISOString().split('T')[0] : null }
+                : quest
+        ));
+    };
+
+    const handleDeleteQuest = (id) => {
+        if (window.confirm('Are you sure you want to delete this quest?')) {
+            setQuests(quests.filter(quest => quest.id !== id));
+        }
+    };
 
     const totalXPEarned = completedQuests.reduce((sum, quest) => sum + quest.xpReward, 0);
     const totalXPAvailable = activeQuests.reduce((sum, quest) => sum + quest.xpReward, 0);
@@ -87,8 +118,12 @@ const QuestsPage = () => {
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-foreground">Quests</h1>
-                        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition mt-5">
-                            <span className="size={20px}">+</span> Add Quest
+                        <button
+                            onClick={() => setShowModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Add Quest
                         </button>
                     </div>
                     <p className="text-muted-foreground">
@@ -108,7 +143,7 @@ const QuestsPage = () => {
 
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="flex items-center gap-2 mb-2">
-                            <CheckCircle className="w-5 h-5 text-chart-2" />
+                            <CheckCircle className="w-5 h-5 text-green-500" />
                             <span className="text-muted-foreground text-sm">Completed</span>
                         </div>
                         <div className="text-3xl font-bold text-foreground">{completedQuests.length}</div>
@@ -126,8 +161,8 @@ const QuestsPage = () => {
                     <button
                         onClick={() => setActiveTab('active')}
                         className={`px-6 py-2 rounded-md font-medium transition ${activeTab === 'active'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-card border border-border hover:bg-muted'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-card border border-border hover:bg-muted'
                             }`}
                     >
                         Active Quests ({activeQuests.length})
@@ -135,8 +170,8 @@ const QuestsPage = () => {
                     <button
                         onClick={() => setActiveTab('completed')}
                         className={`px-6 py-2 rounded-md font-medium transition ${activeTab === 'completed'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-card border border-border hover:bg-muted'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-card border border-border hover:bg-muted'
                             }`}
                     >
                         Completed ({completedQuests.length})
@@ -147,44 +182,121 @@ const QuestsPage = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {activeTab === 'active'
                         ? activeQuests.map(quest => (
-                            <div key={quest.id} className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-shadow">
-                                <QuestCard
-                                    title={quest.title}
-                                    description={quest.description}
-                                    xpReward={quest.xpReward}
-                                    difficulty={quest.difficulty}
-                                />
-                                {/* Progress Bar */}
-                                <div className="mt-4 pt-4 border-t border-border">
-                                    <div className="flex justify-between text-sm mb-2">
-                                        <span className="text-muted-foreground">Progress</span>
-                                        <span className="text-foreground font-medium">{quest.progress} / {quest.total}</span>
-                                    </div>
-                                    <div className="w-full bg-muted rounded-full h-2">
-                                        <div
-                                            className="bg-primary h-2 rounded-full transition-all"
-                                            style={{ width: `${(quest.progress / quest.total) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                            <QuestCard
+                                key={quest.id}
+                                title={quest.title}
+                                description={quest.description}
+                                xpReward={quest.xpReward}
+                                difficulty={quest.difficulty}
+                                onToggle={() => handleToggleQuest(quest.id)}
+                                onDelete={() => handleDeleteQuest(quest.id)}
+                            />
                         ))
                         : completedQuests.map(quest => (
-                            <div key={quest.id} className="bg-card border border-border rounded-lg p-6 opacity-80">
-                                <QuestCard
-                                    title={quest.title}
-                                    description={quest.description}
-                                    xpReward={quest.xpReward}
-                                    difficulty={quest.difficulty}
-                                    completed={quest.completed}
-                                />
-                                <div className="mt-4 pt-4 border-t border-border text-sm text-muted-foreground">
-                                    Completed on {new Date(quest.completedDate).toLocaleDateString()}
-                                </div>
-                            </div>
+                            <QuestCard
+                                key={quest.id}
+                                title={quest.title}
+                                description={quest.description}
+                                xpReward={quest.xpReward}
+                                difficulty={quest.difficulty}
+                                completed={true}
+                            />
                         ))
                     }
                 </div>
+
+                {/* Add Quest Modal */}
+                {showModal && (
+                    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-2xl font-bold text-foreground">Add New Quest</h2>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="p-2 hover:bg-muted rounded-lg transition"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleAddQuest} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Quest Title
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={newQuest.title}
+                                        onChange={(e) => setNewQuest({ ...newQuest, title: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                        placeholder="Enter quest title"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Description
+                                    </label>
+                                    <textarea
+                                        value={newQuest.description}
+                                        onChange={(e) => setNewQuest({ ...newQuest, description: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                                        rows="3"
+                                        placeholder="Describe your quest"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        XP Reward
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={newQuest.xpReward}
+                                        onChange={(e) => setNewQuest({ ...newQuest, xpReward: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                        min="10"
+                                        step="10"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Difficulty
+                                    </label>
+                                    <select
+                                        value={newQuest.difficulty}
+                                        onChange={(e) => setNewQuest({ ...newQuest, difficulty: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                    >
+                                        <option value="easy">Easy</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="hard">Hard</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
+                                    >
+                                        Add Quest
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

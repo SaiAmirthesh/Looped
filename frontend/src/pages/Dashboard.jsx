@@ -187,16 +187,25 @@ const Dashboard = () => {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
+                <div className="mt-15 bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
                     <h3 className="text-lg text-foreground font-semibold mb-4">Quick Actions</h3>
                     <div className="flex gap-4 flex-wrap">
-                        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition">
+                        <button
+                            onClick={() => navigate('/habits')}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition"
+                        >
                             Add New Habit
                         </button>
-                        <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:opacity-90 transition">
+                        <button
+                            onClick={() => navigate('/focus')}
+                            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:opacity-90 transition"
+                        >
                             Start Focus Session
                         </button>
-                        <button className="px-4 py-2 bg-chart-5 text-secondary-foreground rounded-md hover:opacity-90 transition">
+                        <button
+                            onClick={() => navigate('/calendar')}
+                            className="px-4 py-2 bg-chart-5 text-secondary-foreground rounded-md hover:opacity-90 transition"
+                        >
                             View Calendar
                         </button>
                     </div>

@@ -13,14 +13,14 @@ export default function Navigation() {
   ];
 
   return (
-    <aside className="h-screen w-64 border-r px-4 py-6 transition-colors" style={{ backgroundColor: "var(--sidebar)", borderColor: "var(--sidebar-border)" }}>
+    <aside className="h-100vh w-64 border-r px-4 py-6 transition-colors" style={{ backgroundColor: "var(--sidebar)", borderColor: "var(--sidebar-border)" }}>
       {/* Logo */}
       <div className="mb-8 px-2">
         <Logo size={40} />
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-4">
         {navItems.map((item) => (
           <NavLink
             key={item.path}

@@ -50,7 +50,7 @@ const HabitsPage = () => {
         <div className="flex min-h-screen bg-background">
             <Navigation />
 
-            <main className="flex-1 ml-64 p-8">
+            <main className="flex-1 ml-10 p-8">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
@@ -69,7 +69,7 @@ const HabitsPage = () => {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 ">
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-muted-foreground text-sm">Total Habits</span>
@@ -131,7 +131,7 @@ const HabitsPage = () => {
                 </div>
 
                 {/* Habits List */}
-                <div className="space-y-3">
+                <div className="space-y-3 w-200">
                     {filteredHabits.map(habit => (
                         <HabitCard
                             key={habit.id}

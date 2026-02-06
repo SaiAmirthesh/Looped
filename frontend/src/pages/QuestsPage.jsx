@@ -82,10 +82,15 @@ const QuestsPage = () => {
         <div className="flex min-h-screen bg-background">
             <Navigation />
 
-            <main className="flex-1 ml-64 p-8">
+            <main className="flex-1 ml-10 p-8">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-foreground mb-2">Quests</h1>
+                    <div className="flex items-center justify-between mb-4">
+                        <h1 className="text-3xl font-bold text-foreground">Quests</h1>
+                        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition mt-5">
+                            Add Quest
+                        </button>
+                    </div>
                     <p className="text-muted-foreground">
                         Complete quests to earn XP and level up your skills
                     </p>

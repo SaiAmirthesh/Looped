@@ -50,7 +50,7 @@ const ProfilePage = () => {
         <div className="flex min-h-screen bg-background">
             <Navigation />
 
-            <main className="flex-1 ml-64 p-8">
+            <main className="flex-1 ml-10 p-8">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
@@ -59,7 +59,7 @@ const ProfilePage = () => {
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-2 px-4 py-2 border border-border rounded-md hover:bg-muted transition"
+                        className="flex items-center gap-2 px-4 py-2 border border-border rounded-md hover:bg-muted transition bg-primary text-foreground"
                     >
                         <LogOut className="w-4 h-4" />
                         Logout

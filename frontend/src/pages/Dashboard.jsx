@@ -93,7 +93,7 @@ const Dashboard = () => {
         <div className="flex min-h-screen bg-background">
             <Navigation />
 
-            <main className="flex-1 ml-64 p-8">
+            <main className="flex-1 ml-10 p-8">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
@@ -104,7 +104,7 @@ const Dashboard = () => {
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted transition"
+                        className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted transition bg-primary text-foreground"
                     >
                         Logout
                     </button>
@@ -158,7 +158,7 @@ const Dashboard = () => {
                             {dailyHabits.filter(h => h.completed).length} / {dailyHabits.length} completed
                         </span>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3 w-200">
                         {dailyHabits.map(habit => (
                             <HabitCard
                                 key={habit.id}
@@ -173,7 +173,7 @@ const Dashboard = () => {
                 {/* Active Quests */}
                 <div className="mb-8">
                     <h2 className="text-xl font-semibold text-foreground mb-4">Active Quests</h2>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-30 ">
                         {activeQuests.map(quest => (
                             <QuestCard
                                 key={quest.id}
@@ -188,7 +188,7 @@ const Dashboard = () => {
 
                 {/* Quick Actions */}
                 <div className="bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+                    <h3 className="text-lg text-foreground font-semibold mb-4">Quick Actions</h3>
                     <div className="flex gap-4 flex-wrap">
                         <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition">
                             Add New Habit
@@ -196,7 +196,7 @@ const Dashboard = () => {
                         <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:opacity-90 transition">
                             Start Focus Session
                         </button>
-                        <button className="px-4 py-2 border border-border rounded-md hover:bg-muted transition">
+                        <button className="px-4 py-2 bg-chart-5 text-secondary-foreground rounded-md hover:opacity-90 transition">
                             View Calendar
                         </button>
                     </div>

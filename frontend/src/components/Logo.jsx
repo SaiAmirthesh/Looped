@@ -1,4 +1,4 @@
-import logo from "../assets/looped-logo.png";
+import logo from "../assets/infinity-96.png";
 
 export default function Logo({
   size = 48,

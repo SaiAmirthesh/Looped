@@ -11,7 +11,7 @@ const LandingPage = () => {
             <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Logo size={48} showText={false}/>
+                        <Logo size={48} showText={false} />
                         <span className="text-xl font-semibold">Looped</span>
                     </div>
 
@@ -72,6 +72,7 @@ const LandingPage = () => {
                     </div>
                 </motion.div>
             </section>
+
 
             {/* FEATURES */}
             <section id="features" className="bg-card border-y border-border py-24">
@@ -143,7 +144,7 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* TESTIMONIALS */}
+            {/* BENEFITS */}
             <section className="bg-card border-y border-border py-24">
                 <div className="max-w-7xl mx-auto px-6">
                     <motion.div
@@ -152,35 +153,35 @@ const LandingPage = () => {
                         viewport={{ once: true }}
                         className="text-center mb-16"
                     >
-                        <h2 className="text-4xl font-bold mb-4">What Players Say</h2>
-                        <p className="text-muted-foreground text-lg">Real stories from our community</p>
+                        <h2 className="text-4xl font-bold mb-4">
+                            What You Gain with{" "}
+                            <span className="text-primary">Looped</span>
+                        </h2>
+                        <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                            Looped is designed to create lasting impact by turning everyday actions
+                            into meaningful progress.
+                        </p>
                     </motion.div>
 
                     <div className="grid md:grid-cols-3 gap-8">
-                        {testimonials.map((testimonial, index) => (
+                        {benefits.map((benefit, index) => (
                             <motion.div
-                                key={testimonial.name}
+                                key={benefit.title}
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ delay: index * 0.1 }}
-                                className="bg-background border border-border rounded-xl p-6"
+                                className="relative bg-background border border-border rounded-xl p-6"
                             >
-                                <div className="flex items-center gap-1 mb-4">
-                                    {[...Array(5)].map((_, i) => (
-                                        <span key={i} className="text-primary">★</span>
-                                    ))}
-                                </div>
-                                <p className="text-muted-foreground mb-4">"{testimonial.quote}"</p>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center font-semibold">
-                                        {testimonial.name[0]}
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">{testimonial.name}</div>
-                                        <div className="text-sm text-muted-foreground">{testimonial.role}</div>
-                                    </div>
-                                </div>
+                                {/* Accent dot */}
+                                <div className="absolute top-4 right-4 w-3 h-3 rounded-full bg-[color:var(--chart-2)]" />
+
+                                <h3 className="text-lg font-semibold mb-2 text-primary">
+                                    {benefit.title}
+                                </h3>
+                                <p className="text-muted-foreground text-sm">
+                                    {benefit.description}
+                                </p>
                             </motion.div>
                         ))}
                     </div>
@@ -270,7 +271,7 @@ const LandingPage = () => {
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <Logo size={48} showText={true}/>
+                            <Logo size={48} showText={true} />
                         </div>
 
                         <div className="flex gap-6 text-sm text-muted-foreground">
@@ -337,22 +338,38 @@ const steps = [
     }
 ];
 
-const testimonials = [
+const benefits = [
     {
-        name: "Alex Chen",
-        role: "Software Developer",
-        quote: "Looped turned my chaotic routine into a fun game. I've never been this consistent!"
+        title: "Improved Lifestyle",
+        description:
+            "Build healthy routines and maintain consistency through daily habit loops.",
     },
     {
-        name: "Sarah Miller",
-        role: "Student",
-        quote: "The XP system keeps me motivated. It's like playing an RPG but for real life goals."
+        title: "Stronger Focus & Discipline",
+        description:
+            "Use focus sessions and structured goals to eliminate distractions and stay productive.",
     },
     {
-        name: "James Wilson",
-        role: "Entrepreneur",
-        quote: "Best productivity app I've used. The gamification actually works!"
-    }
+        title: "Sustained Motivation",
+        description:
+            "Earn XP and track progress visually, making long-term goals feel rewarding.",
+    },
+    {
+        title: "Clarity in Daily Planning",
+        description:
+            "Break down complex goals into manageable quests and achievable actions.",
+    },
+    {
+        title: "Measurable Personal Growth",
+        description:
+            "Visualize your progress over time with streaks, stats, and growth insights.",
+    },
+    {
+        title: "Balanced Work Routine",
+        description:
+            "Maintain a healthy balance between work, focus, and rest using Pomodoro cycles.",
+    },
 ];
+
 
 export default LandingPage;

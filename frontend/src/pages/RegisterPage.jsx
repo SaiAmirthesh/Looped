@@ -71,8 +71,8 @@ const RegisterPage = () => {
                         )}
 
                         {success && (
-                            <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-lg">
-                                <p className="text-primary text-sm">
+                            <div className="mb-6 p-4 bg-green-500/10 border border-green-500 rounded-lg">
+                                <p className="text-green-500 text-sm">
                                     Account created successfully! Check your email to verify your account. Redirecting to login...
                                 </p>
                             </div>

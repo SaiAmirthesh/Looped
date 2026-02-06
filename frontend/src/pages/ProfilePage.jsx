@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import { User, Mail, Trophy, Target, Flame, LogOut, Moon, Sun } from 'lucide-react';
+import SkillRadarChart from '../components/SkillRadarChart';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -89,28 +90,6 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Theme Selector */}
-                        <div className="bg-card border border-border rounded-lg p-6">
-                            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                                {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                                Theme
-                            </h3>
-                            <div className="space-y-2">
-                                <button
-                                    onClick={() => handleThemeChange('dark')}
-                                    className={`w-full px-4 py-3 rounded-lg text-left transition ${theme === 'dark'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-background border border-border hover:bg-muted'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Moon className="w-4 h-4" />
-                                        <span>Dark Mode</span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
                         {/* Quick Stats */}
                         <div className="bg-card border border-border rounded-lg p-6">
                             <h3 className="font-semibold text-foreground mb-4">Quick Stats</h3>
@@ -127,6 +106,12 @@ const ProfilePage = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Account Actions */}
+                        <div className="size={400px}">
+                            <SkillRadarChart />
+                        </div>
+
                     </div>
 
                     {/* Right Column - Progress & Achievements */}
@@ -201,12 +186,10 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Account Actions */}
-                        <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-lg p-6">
-                            <h3 className="font-semibold text-foreground mb-2">Danger Zone</h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                                Irreversible actions that affect your account
-                            </p>
+                        
+
+                        <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-lg p-6 flex gap-10 items-center justify-between">
+                            <p className="text-sm text-muted-foreground">Irreversible actions that affect your account</p>
                             <button className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:opacity-90 transition text-sm">
                                 Delete Account
                             </button>

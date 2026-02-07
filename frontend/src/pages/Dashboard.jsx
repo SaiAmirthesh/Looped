@@ -143,15 +143,19 @@ const Dashboard = () => {
                 // Handle XP with proper leveling formula
                 const xpKey = generateKey(user.id, 'xp');
                 const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+
+                // Always calculate nextLevelXP based on current level to ensure it's correct
+                const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
+
                 const newCurrentXP = currentXP.currentXP + (completedToday ? xpValue : -xpValue);
 
                 let newLevel = currentXP.level;
                 let finalCurrentXP = newCurrentXP;
-                let newNextLevelXP = currentXP.nextLevelXP;
+                let newNextLevelXP = currentNextLevelXP;
 
-                if (newCurrentXP >= currentXP.nextLevelXP) {
+                if (newCurrentXP >= currentNextLevelXP) {
                     newLevel = currentXP.level + 1;
-                    finalCurrentXP = newCurrentXP - currentXP.nextLevelXP;
+                    finalCurrentXP = newCurrentXP - currentNextLevelXP;
                     newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
                 }
 
@@ -209,15 +213,19 @@ const Dashboard = () => {
                     // Award XP with proper leveling formula
                     const xpKey = generateKey(user.id, 'xp');
                     const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+
+                    // Always calculate nextLevelXP based on current level to ensure it's correct
+                    const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
+
                     const newCurrentXP = currentXP.currentXP + quest.xpReward;
 
                     let newLevel = currentXP.level;
                     let finalCurrentXP = newCurrentXP;
-                    let newNextLevelXP = currentXP.nextLevelXP;
+                    let newNextLevelXP = currentNextLevelXP;
 
-                    if (newCurrentXP >= currentXP.nextLevelXP) {
+                    if (newCurrentXP >= currentNextLevelXP) {
                         newLevel = currentXP.level + 1;
-                        finalCurrentXP = newCurrentXP - currentXP.nextLevelXP;
+                        finalCurrentXP = newCurrentXP - currentNextLevelXP;
                         newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
                     }
 

@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
-import { User, Mail, Trophy, Target, Flame, LogOut, Moon, Sun } from 'lucide-react';
+import { User, Mail, Trophy, Target, Flame, LogOut } from 'lucide-react';
 import SkillRadarChart from '../components/SkillRadarChart';
 import { getData, generateKey } from '../lib/storage';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
-    const [theme, setTheme] = useState('dark');
     const [playerStats, setPlayerStats] = useState({
         level: 1,
         currentXP: 0,
@@ -30,13 +29,28 @@ const ProfilePage = () => {
     useEffect(() => {
         const getUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
+                return;
+            }
             if (session) {
                 setUser(session.user);
                 loadProfileData(session.user.id);
             }
         };
         getUser();
-    }, []);
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+                loadProfileData(session.user.id);
+            }
+        });
+
+        return () => subscription?.unsubscribe();
+    }, [navigate]);
 
     const loadProfileData = (userId) => {
         // Load XP data
@@ -64,13 +78,14 @@ const ProfilePage = () => {
         const questsKey = generateKey(userId, 'quests');
         const quests = getData(questsKey, []);
 
-        const newAchievements = [...achievements];
-        if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
-        if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
-        if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
-        if (skillsData.some(s => s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
-
-        setAchievements(newAchievements);
+        setAchievements(prevAchievements => {
+            const newAchievements = [...prevAchievements];
+            if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
+            if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
+            if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
+            if (skillsData && skillsData.length > 0 && skillsData.some(s => s && s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
+            return newAchievements;
+        });
     };
 
     const handleLogout = async () => {
@@ -78,10 +93,6 @@ const ProfilePage = () => {
         navigate('/login');
     };
 
-    const handleThemeChange = (newTheme) => {
-        setTheme(newTheme);
-        localStorage.setItem('looped:theme', newTheme);
-    };
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -143,8 +154,8 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Account Actions */}
-                        <div className="size={400px}">
+                        {/* Skill Radar Chart */}
+                        <div className="w-full">
                             <SkillRadarChart skills={skills} />
                         </div>
 

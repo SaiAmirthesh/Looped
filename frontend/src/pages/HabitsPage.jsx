@@ -5,6 +5,7 @@ import Navigation from '../components/Navigation';
 import HabitCard from '../components/HabitCard';
 import { Plus, X, Filter } from 'lucide-react';
 import { getData, setData, generateKey } from '../lib/storage';
+import { runMigrations } from '../lib/migrations';
 
 const HabitsPage = () => {
     const navigate = useNavigate();
@@ -30,6 +31,9 @@ const HabitsPage = () => {
 
             const userId = session.user.id;
             setUser(session.user);
+
+            // Run migrations to fix old data
+            runMigrations(userId);
 
             // Load habits for this user
             const storageKey = generateKey(userId, 'habits');
@@ -74,12 +78,15 @@ const HabitsPage = () => {
         const xpKey = generateKey(user.id, 'xp');
         const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
 
+        // Always calculate nextLevelXP based on current level to ensure it's correct
+        const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
+
         const newCurrentXP = currentXP.currentXP + amount;
-        const xpForLevelUp = currentXP.nextLevelXP;
+        const xpForLevelUp = currentNextLevelXP;
 
         let newLevel = currentXP.level;
         let finalCurrentXP = newCurrentXP;
-        let newNextLevelXP = xpForLevelUp;
+        let newNextLevelXP = currentNextLevelXP;
 
         // Handle level up with proper formula: nextLevelXP = 100 * (level ^ 1.5)
         if (newCurrentXP >= xpForLevelUp) {
@@ -162,8 +169,10 @@ const HabitsPage = () => {
                     // Add XP to overall player XP
                     addXP(10);
 
-                    // Add XP to the habit's associated skill
-                    addSkillXP(habit.skill, 10);
+                    // Add XP to the habit's associated skill (if it has one)
+                    if (habit.skill) {
+                        addSkillXP(habit.skill, 10);
+                    }
 
                     return {
                         ...habit,

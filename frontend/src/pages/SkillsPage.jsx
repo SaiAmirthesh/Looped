@@ -5,6 +5,7 @@ import Navigation from '../components/Navigation';
 import StatCard from '../components/StatCard';
 import { Target, Brain, Heart, BookOpen, Palette, Users, Sword, Zap } from 'lucide-react';
 import { getData, generateKey } from '../lib/storage';
+import { runMigrations } from '../lib/migrations';
 
 const SkillsPage = () => {
     const navigate = useNavigate();
@@ -23,6 +24,9 @@ const SkillsPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
+            // Run migrations to fix old data
+            runMigrations(userId);
+
             // Load skills for this user
             const skillsKey = generateKey(userId, 'skills');
             const defaultSkills = [
@@ -35,16 +39,20 @@ const SkillsPage = () => {
             ];
             const skillsData = getData(skillsKey, defaultSkills);
 
-            const enrichedSkills = skillsData.map(skill => {
-                const maxXP = 100;
-                return {
-                    ...skill,
-                    maxXP,
-                    progress: Math.min(skill.currentXP, maxXP),
-                    icon: getSkillIcon(skill.name),
-                    description: getSkillDescription(skill.name)
-                };
-            });
+            // Filter out null/undefined skills and add calculated properties for display
+            const enrichedSkills = skillsData
+                .filter(skill => skill && skill.name)
+                .map(skill => {
+                    const maxXP = Math.floor(100 * Math.pow(skill.level, 1.5));
+                    const progress = maxXP > 0 ? Math.floor((skill.currentXP / maxXP) * 100) : 0;
+                    return {
+                        ...skill,
+                        maxXP,
+                        progress,
+                        icon: getSkillIcon(skill.name),
+                        description: getSkillDescription(skill.name)
+                    };
+                });
 
             setSkills(enrichedSkills);
             setLoading(false);

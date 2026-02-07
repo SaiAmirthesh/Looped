@@ -68,22 +68,27 @@ const QuestsPage = () => {
         const xpKey = generateKey(user.id, 'xp');
         const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
 
+        // Always calculate nextLevelXP based on current level to ensure it's correct
+        const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
+
         const newCurrentXP = currentXP.currentXP + amount;
-        const xpForLevelUp = currentXP.nextLevelXP;
+        const xpForLevelUp = currentNextLevelXP;
 
         let newLevel = currentXP.level;
         let finalCurrentXP = newCurrentXP;
+        let newNextLevelXP = currentNextLevelXP;
 
         if (newCurrentXP >= xpForLevelUp) {
             newLevel += 1;
             finalCurrentXP = newCurrentXP - xpForLevelUp;
+            newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
         }
 
         const updatedXP = {
             totalXP: Math.max(0, currentXP.totalXP + amount),
             level: Math.max(1, newLevel),
             currentXP: Math.max(0, finalCurrentXP),
-            nextLevelXP: xpForLevelUp
+            nextLevelXP: newNextLevelXP
         };
 
         setData(xpKey, updatedXP);

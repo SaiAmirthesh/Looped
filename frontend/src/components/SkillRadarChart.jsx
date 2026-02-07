@@ -8,15 +8,21 @@ import {
 } from "recharts";
 
 export default function SkillRadarChart({ skills = [] }) {
-  const data = skills.map(s => ({ skill: s.name, value: Math.min(100, Math.round(s.currentXP || 0)) }));
+  // Filter out null/undefined skills and map to chart data
+  const data = skills
+    .filter(s => s && s.name)
+    .map(s => ({
+      skill: s.name,
+      value: Math.min(100, Math.round(s.currentXP || 0))
+    }));
 
   // Fallback to simple items if no skills passed
   const chartData = data.length > 0 ? data : [
     { skill: 'Focus', value: 0 },
-    { skill: 'Discipline', value: 0 },
-    { skill: 'Health', value: 0 },
     { skill: 'Learning', value: 0 },
+    { skill: 'Health', value: 0 },
     { skill: 'Creativity', value: 0 },
+    { skill: 'Confidence', value: 0 },
     { skill: 'Social', value: 0 },
   ];
 

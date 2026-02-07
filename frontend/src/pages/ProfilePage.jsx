@@ -49,10 +49,10 @@ const ProfilePage = () => {
         const skillsKey = generateKey(userId, 'skills');
         const defaultSkills = [
             { name: 'Focus', currentXP: 0, level: 1 },
-            { name: 'Discipline', currentXP: 0, level: 1 },
-            { name: 'Health', currentXP: 0, level: 1 },
             { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
             { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Confidence', currentXP: 0, level: 1 },
             { name: 'Social', currentXP: 0, level: 1 }
         ];
         const skillsData = getData(skillsKey, defaultSkills);
@@ -63,13 +63,13 @@ const ProfilePage = () => {
         const habits = getData(habitsKey, []);
         const questsKey = generateKey(userId, 'quests');
         const quests = getData(questsKey, []);
-        
+
         const newAchievements = [...achievements];
         if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
         if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
         if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
         if (skillsData.some(s => s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
-        
+
         setAchievements(newAchievements);
     };
 
@@ -177,7 +177,11 @@ const ProfilePage = () => {
                                     <Target className="w-5 h-5 text-chart-2" />
                                     <span className="text-muted-foreground text-sm">Habits Completed</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">156</div>
+                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
+                                    const habitsKey = generateKey(user.id, 'habits');
+                                    const habits = getData(habitsKey, []);
+                                    return habits.filter(h => h.completedToday).length;
+                                })() : 0}</div>
                             </div>
 
                             <div className="bg-card border border-border rounded-lg p-6">
@@ -185,7 +189,12 @@ const ProfilePage = () => {
                                     <Flame className="w-5 h-5 text-chart-1" />
                                     <span className="text-muted-foreground text-sm">Longest Streak</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">12 days</div>
+                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
+                                    const habitsKey = generateKey(user.id, 'habits');
+                                    const habits = getData(habitsKey, []);
+                                    const streaks = habits.map(h => h.streak || 0);
+                                    return streaks.length > 0 ? Math.max(...streaks) : 0;
+                                })() : 0} days</div>
                             </div>
                         </div>
 
@@ -197,8 +206,8 @@ const ProfilePage = () => {
                                     <div
                                         key={achievement.id}
                                         className={`p-4 rounded-lg border transition ${achievement.unlocked
-                                                ? 'border-primary/20 bg-primary/5'
-                                                : 'border-border bg-muted/50 opacity-60'
+                                            ? 'border-primary/20 bg-primary/5'
+                                            : 'border-border bg-muted/50 opacity-60'
                                             }`}
                                     >
                                         <div className="flex items-start gap-3">
@@ -222,7 +231,7 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        
+
 
                         <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-lg p-6 flex gap-10 items-center justify-between">
                             <p className="text-sm text-muted-foreground">Irreversible actions that affect your account</p>

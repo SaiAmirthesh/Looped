@@ -97,28 +97,77 @@ const Dashboard = () => {
         navigate('/login');
     };
 
+    const addSkillXP = (skillName, amount) => {
+        if (!user) return;
+
+        const skillsKey = generateKey(user.id, 'skills');
+        const defaultSkills = [
+            { name: 'Focus', currentXP: 0, level: 1 },
+            { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
+            { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Confidence', currentXP: 0, level: 1 },
+            { name: 'Social', currentXP: 0, level: 1 }
+        ];
+        let skills = getData(skillsKey, defaultSkills);
+
+        // Add XP to the specified skill with leveling formula
+        skills = skills.map(skill => {
+            if (skill.name === skillName) {
+                const newXP = skill.currentXP + amount;
+                const nextLevelXP = Math.floor(100 * Math.pow(skill.level, 1.5));
+                const levelUp = newXP >= nextLevelXP;
+
+                return {
+                    ...skill,
+                    currentXP: levelUp ? newXP - nextLevelXP : newXP,
+                    level: levelUp ? skill.level + 1 : skill.level
+                };
+            }
+            return skill;
+        });
+
+        setData(skillsKey, skills);
+    };
+
     const handleToggleHabit = (habitId) => {
         const habitsKey = generateKey(user.id, 'habits');
         const habits = getData(habitsKey, []);
         const today = new Date().toISOString().split('T')[0];
-        
+
         const updatedHabits = habits.map(habit => {
             if (habit.id === habitId) {
                 const completedToday = !habit.completedToday;
                 const xpValue = 10;
-                
-                // Handle XP
+
+                // Handle XP with proper leveling formula
                 const xpKey = generateKey(user.id, 'xp');
                 const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
                 const newCurrentXP = currentXP.currentXP + (completedToday ? xpValue : -xpValue);
+
+                let newLevel = currentXP.level;
+                let finalCurrentXP = newCurrentXP;
+                let newNextLevelXP = currentXP.nextLevelXP;
+
+                if (newCurrentXP >= currentXP.nextLevelXP) {
+                    newLevel = currentXP.level + 1;
+                    finalCurrentXP = newCurrentXP - currentXP.nextLevelXP;
+                    newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
+                }
+
                 const updatedXP = {
                     totalXP: Math.max(0, currentXP.totalXP + (completedToday ? xpValue : -xpValue)),
-                    level: newCurrentXP >= currentXP.nextLevelXP ? currentXP.level + 1 : currentXP.level,
-                    currentXP: Math.max(0, newCurrentXP),
-                    nextLevelXP: currentXP.nextLevelXP
+                    level: newLevel,
+                    currentXP: Math.max(0, finalCurrentXP),
+                    nextLevelXP: newNextLevelXP
                 };
                 setData(xpKey, updatedXP);
                 setPlayerStats(updatedXP);
+
+                // Add XP to the habit's associated skill
+                if (habit.skill) {
+                    addSkillXP(habit.skill, 10);
+                }
 
                 if (completedToday) {
                     const lastCompleted = habit.lastCompleted === today ? habit.lastCompleted : today;
@@ -138,7 +187,7 @@ const Dashboard = () => {
             }
             return habit;
         });
-        
+
         setData(habitsKey, updatedHabits);
         const updated = updatedHabits.slice(0, 4).map(h => ({
             id: h.id,
@@ -153,22 +202,38 @@ const Dashboard = () => {
     const handleToggleQuest = (questId) => {
         const questsKey = generateKey(user.id, 'quests');
         const quests = getData(questsKey, []);
-        
+
         const updatedQuests = quests.map(quest => {
             if (quest.id === questId) {
                 if (!quest.completed) {
-                    // Award XP
+                    // Award XP with proper leveling formula
                     const xpKey = generateKey(user.id, 'xp');
                     const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
                     const newCurrentXP = currentXP.currentXP + quest.xpReward;
+
+                    let newLevel = currentXP.level;
+                    let finalCurrentXP = newCurrentXP;
+                    let newNextLevelXP = currentXP.nextLevelXP;
+
+                    if (newCurrentXP >= currentXP.nextLevelXP) {
+                        newLevel = currentXP.level + 1;
+                        finalCurrentXP = newCurrentXP - currentXP.nextLevelXP;
+                        newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
+                    }
+
                     const updatedXP = {
                         totalXP: currentXP.totalXP + quest.xpReward,
-                        level: newCurrentXP >= currentXP.nextLevelXP ? currentXP.level + 1 : currentXP.level,
-                        currentXP: newCurrentXP,
-                        nextLevelXP: currentXP.nextLevelXP
+                        level: newLevel,
+                        currentXP: finalCurrentXP,
+                        nextLevelXP: newNextLevelXP
                     };
                     setData(xpKey, updatedXP);
                     setPlayerStats(updatedXP);
+
+                    // Add XP to the quest's associated skill
+                    if (quest.skill) {
+                        addSkillXP(quest.skill, quest.xpReward);
+                    }
                 }
                 return {
                     ...quest,
@@ -178,7 +243,7 @@ const Dashboard = () => {
             }
             return quest;
         });
-        
+
         setData(questsKey, updatedQuests);
         const active = updatedQuests.filter(q => !q.completed).slice(0, 2).map(q => ({
             id: q.id,

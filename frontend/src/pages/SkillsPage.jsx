@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import StatCard from '../components/StatCard';
-import { Target, Brain, Heart, BookOpen, Palette, Users } from 'lucide-react';
+import { Target, Brain, Heart, BookOpen, Palette, Users, Sword, Zap } from 'lucide-react';
 import { getData, generateKey } from '../lib/storage';
 
 const SkillsPage = () => {
@@ -27,14 +27,14 @@ const SkillsPage = () => {
             const skillsKey = generateKey(userId, 'skills');
             const defaultSkills = [
                 { name: 'Focus', currentXP: 0, level: 1 },
-                { name: 'Discipline', currentXP: 0, level: 1 },
-                { name: 'Health', currentXP: 0, level: 1 },
                 { name: 'Learning', currentXP: 0, level: 1 },
+                { name: 'Health', currentXP: 0, level: 1 },
                 { name: 'Creativity', currentXP: 0, level: 1 },
+                { name: 'Confidence', currentXP: 0, level: 1 },
                 { name: 'Social', currentXP: 0, level: 1 }
             ];
             const skillsData = getData(skillsKey, defaultSkills);
-            
+
             const enrichedSkills = skillsData.map(skill => {
                 const maxXP = 100;
                 return {
@@ -45,7 +45,7 @@ const SkillsPage = () => {
                     description: getSkillDescription(skill.name)
                 };
             });
-            
+
             setSkills(enrichedSkills);
             setLoading(false);
         };
@@ -66,10 +66,10 @@ const SkillsPage = () => {
     const getSkillIcon = (skillName) => {
         const iconMap = {
             'Focus': <Target className="w-6 h-6 text-primary" />,
-            'Discipline': <Brain className="w-6 h-6 text-chart-2" />,
-            'Health': <Heart className="w-6 h-6 text-chart-1" />,
             'Learning': <BookOpen className="w-6 h-6 text-chart-4" />,
+            'Health': <Heart className="w-6 h-6 text-chart-1" />,
             'Creativity': <Palette className="w-6 h-6 text-chart-3" />,
+            'Confidence': <Zap className="w-6 h-6 text-yellow-500" />,
             'Social': <Users className="w-6 h-6 text-chart-5" />
         };
         return iconMap[skillName] || <Target className="w-6 h-6 text-primary" />;
@@ -78,10 +78,10 @@ const SkillsPage = () => {
     const getSkillDescription = (skillName) => {
         const descMap = {
             'Focus': 'Your ability to concentrate and complete tasks without distraction',
-            'Discipline': 'Consistency in following through with your commitments',
-            'Health': 'Physical and mental well-being through healthy habits',
             'Learning': 'Knowledge acquisition and continuous self-improvement',
+            'Health': 'Physical and mental well-being through healthy habits',
             'Creativity': 'Innovative thinking and creative problem-solving',
+            'Confidence': 'Self-assurance and belief in your abilities',
             'Social': 'Building and maintaining meaningful relationships'
         };
         return descMap[skillName] || '';
@@ -108,7 +108,7 @@ const SkillsPage = () => {
             <main className="flex-1 ml-10 p-8">
                 {/* Header */}
                 <div className="mb-8 ">
-                    <div className="flex items-center justify-between mb-4">    
+                    <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-foreground mb-2">Skills</h1>
                     </div>
                     <p className="text-muted-foreground">

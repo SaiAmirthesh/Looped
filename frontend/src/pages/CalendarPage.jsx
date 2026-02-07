@@ -11,6 +11,7 @@ const CalendarPage = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [dailyStatus, setDailyStatus] = useState({}); // Store completion status per day
     const [dailyXP, setDailyXP] = useState({});
+    const [dailyStreak, setDailyStreak] = useState({}); // Store streak per day
     const [currentStreak, setCurrentStreak] = useState(0);
 
     useEffect(() => {
@@ -28,50 +29,77 @@ const CalendarPage = () => {
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-            
+
+            // Get account creation date
+            const accountCreatedAt = session.user.created_at ? new Date(session.user.created_at) : new Date();
+
             const habitsKey = generateKey(userId, 'habits');
             const habits = getData(habitsKey, []);
-            
+
             const statusMap = {};
             const xpMap = {};
-            
+            const streakMap = {};
+
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                
+                const currentDayDate = new Date(year, month, day);
+
+                // Check if this day is before account creation
+                const isBeforeAccount = currentDayDate < accountCreatedAt;
+
+                // Check if this day is in the future
+                const isFuture = currentDayDate > new Date();
+
                 // Count habits completed on this day
                 const habitsCompletedCount = habits.filter(h => h.lastCompleted === dateStr).length;
                 const totalHabits = habits.length;
-                
-                // Determine completion status: green (100%), orange (>0%), red (0%)
-                let status = 'no'; // red - no completion
-                if (totalHabits > 0) {
-                    const completionPercent = (habitsCompletedCount / totalHabits) * 100;
-                    if (completionPercent === 100) {
-                        status = 'full'; // green - full completion
-                    } else if (completionPercent > 0) {
-                        status = 'partial'; // orange - partial completion
+
+                // Determine completion status
+                let status = 'unattended'; // default for days before account or future days
+
+                if (!isBeforeAccount && !isFuture) {
+                    if (totalHabits > 0) {
+                        const completionPercent = (habitsCompletedCount / totalHabits) * 100;
+                        if (completionPercent === 100) {
+                            status = 'full'; // green - full completion
+                        } else if (completionPercent > 0) {
+                            status = 'partial'; // orange - partial completion
+                        } else {
+                            status = 'no'; // red - no completion
+                        }
+                    } else {
+                        status = 'no'; // red - no habits exist yet
                     }
                 }
-                
+
                 const habitXP = habitsCompletedCount * 10; // 10 XP per habit
-                
+
                 // Check focus sessions for that day
                 const focusKey = generateKey(userId, `focusSessions:${dateStr}`);
                 const focusSessions = getData(focusKey, []);
                 const focusXP = focusSessions.filter(s => s.type === 'focus').length * 15; // 15 XP per focus session
-                
+
                 const totalDayXP = habitXP + focusXP;
                 if (totalDayXP > 0) {
                     xpMap[day] = totalDayXP;
                 }
-                
-                if (status !== 'no' || totalDayXP > 0) {
-                    statusMap[day] = status;
+
+                // Store streak for this day if any habit was completed
+                if (habitsCompletedCount > 0) {
+                    const dayStreaks = habits
+                        .filter(h => h.lastCompleted === dateStr)
+                        .map(h => h.streak);
+                    if (dayStreaks.length > 0) {
+                        streakMap[day] = Math.max(...dayStreaks);
+                    }
                 }
+
+                statusMap[day] = status;
             }
-            
+
             setDailyStatus(statusMap);
             setDailyXP(xpMap);
+            setDailyStreak(streakMap);
 
             // Calculate current streak
             const streaks = habits.map(h => h.streak);
@@ -202,16 +230,20 @@ const CalendarPage = () => {
                         {/* Calendar days */}
                         {Array.from({ length: daysInMonth }).map((_, index) => {
                             const day = index + 1;
-                            const status = dailyStatus[day] || 'no';
+                            const status = dailyStatus[day] || 'unattended';
                             const hasXP = dailyXP[day];
+                            const streak = dailyStreak[day];
                             const isToday = day === new Date().getDate() &&
                                 currentDate.getMonth() === new Date().getMonth() &&
                                 currentDate.getFullYear() === new Date().getFullYear();
 
-                            let dayClassName = 'aspect-square border-2 rounded-lg p-2 flex flex-col items-center justify-center transition-all cursor-pointer ';
+                            let dayClassName = 'aspect-square border-2 rounded-lg p-1 flex flex-col items-center justify-center transition-all cursor-pointer relative ';
 
                             if (isToday) {
                                 dayClassName += 'border-primary bg-primary/10 font-bold';
+                            } else if (status === 'unattended') {
+                                // Days before account creation or in the future
+                                dayClassName += 'border-border bg-muted/30 opacity-40';
                             } else if (status === 'full') {
                                 // All habits completed on this day
                                 dayClassName += 'border-green-500/60 bg-green-500/50 hover:bg-green-500/60';
@@ -227,8 +259,14 @@ const CalendarPage = () => {
                                 <div
                                     key={day}
                                     className={dayClassName}
-                                    title={`${status === 'full' ? 'Full completion' : status === 'partial' ? 'Partial completion' : 'No habits completed'}`}
+                                    title={`${status === 'full' ? 'Full completion' : status === 'partial' ? 'Partial completion' : status === 'unattended' ? 'Unattended' : 'No habits completed'}`}
                                 >
+                                    {/* Fire emoji with streak in top-right corner */}
+                                    {streak && (
+                                        <span className="absolute top-0 right-0 text-xs">
+                                            🔥{streak}
+                                        </span>
+                                    )}
                                     <span className={`text-sm ${isToday ? 'text-primary' : 'text-foreground'}`}>
                                         {day}
                                     </span>

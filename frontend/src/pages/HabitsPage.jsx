@@ -15,7 +15,8 @@ const HabitsPage = () => {
 
     const [newHabit, setNewHabit] = useState({
         name: '',
-        category: 'Wellness'
+        category: 'Wellness',
+        skill: 'Focus'
     });
 
     // Load user and habits from localStorage
@@ -33,7 +34,7 @@ const HabitsPage = () => {
             // Load habits for this user
             const storageKey = generateKey(userId, 'habits');
             const savedHabits = getData(storageKey, []);
-            
+
             // Reset completed status for new day
             const today = new Date().toISOString().split('T')[0];
             const resettedHabits = savedHabits.map(habit => {
@@ -42,7 +43,7 @@ const HabitsPage = () => {
                 }
                 return habit;
             });
-            
+
             setHabits(resettedHabits);
         };
 
@@ -69,46 +70,83 @@ const HabitsPage = () => {
 
     const addXP = (amount) => {
         if (!user) return;
-        
+
         const xpKey = generateKey(user.id, 'xp');
         const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        
+
         const newCurrentXP = currentXP.currentXP + amount;
         const xpForLevelUp = currentXP.nextLevelXP;
-        
+
         let newLevel = currentXP.level;
         let finalCurrentXP = newCurrentXP;
-        
+        let newNextLevelXP = xpForLevelUp;
+
+        // Handle level up with proper formula: nextLevelXP = 100 * (level ^ 1.5)
         if (newCurrentXP >= xpForLevelUp) {
             newLevel += 1;
             finalCurrentXP = newCurrentXP - xpForLevelUp;
+            newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
         }
-        
+
         const updatedXP = {
             totalXP: currentXP.totalXP + amount,
             level: newLevel,
             currentXP: finalCurrentXP,
-            nextLevelXP: xpForLevelUp
+            nextLevelXP: newNextLevelXP
         };
-        
+
         setData(xpKey, updatedXP);
+    };
+
+    const addSkillXP = (skillName, amount) => {
+        if (!user) return;
+
+        const skillsKey = generateKey(user.id, 'skills');
+        const defaultSkills = [
+            { name: 'Focus', currentXP: 0, level: 1 },
+            { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
+            { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Confidence', currentXP: 0, level: 1 },
+            { name: 'Social', currentXP: 0, level: 1 }
+        ];
+        let skills = getData(skillsKey, defaultSkills);
+
+        // Add XP to the specified skill with leveling formula
+        skills = skills.map(skill => {
+            if (skill.name === skillName) {
+                const newXP = skill.currentXP + amount;
+                const nextLevelXP = Math.floor(100 * Math.pow(skill.level, 1.5));
+                const levelUp = newXP >= nextLevelXP;
+
+                return {
+                    ...skill,
+                    currentXP: levelUp ? newXP - nextLevelXP : newXP,
+                    level: levelUp ? skill.level + 1 : skill.level
+                };
+            }
+            return skill;
+        });
+
+        setData(skillsKey, skills);
     };
 
     const handleAddHabit = (e) => {
         e.preventDefault();
         if (!newHabit.name.trim()) return;
-        
+
         const habit = {
             id: crypto.randomUUID(),
             title: newHabit.name,
             category: newHabit.category,
+            skill: newHabit.skill,
             streak: 0,
             completedToday: false,
             lastCompleted: null,
             createdAt: new Date().toISOString()
         };
         setHabits([...habits, habit]);
-        setNewHabit({ name: '', category: 'Wellness' });
+        setNewHabit({ name: '', category: 'Wellness', skill: 'Focus' });
         setShowModal(false);
     };
 
@@ -120,7 +158,13 @@ const HabitsPage = () => {
                 if (completedToday) {
                     const lastCompleted = habit.lastCompleted === today ? habit.lastCompleted : today;
                     const sameDay = habit.lastCompleted === today;
-                    addXP(10); // Award XP on completion
+
+                    // Add XP to overall player XP
+                    addXP(10);
+
+                    // Add XP to the habit's associated skill
+                    addSkillXP(habit.skill, 10);
+
                     return {
                         ...habit,
                         completedToday: true,
@@ -306,6 +350,24 @@ const HabitsPage = () => {
                                         <option value="Productivity">Productivity</option>
                                         <option value="Social">Social</option>
                                         <option value="Other">Other</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Skill
+                                    </label>
+                                    <select
+                                        value={newHabit.skill}
+                                        onChange={(e) => setNewHabit({ ...newHabit, skill: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                    >
+                                        <option value="Focus">Focus</option>
+                                        <option value="Learning">Learning</option>
+                                        <option value="Health">Health</option>
+                                        <option value="Creativity">Creativity</option>
+                                        <option value="Confidence">Confidence</option>
+                                        <option value="Social">Social</option>
                                     </select>
                                 </div>
 

@@ -17,7 +17,8 @@ const QuestsPage = () => {
         title: '',
         description: '',
         xpReward: 100,
-        difficulty: 'easy'
+        difficulty: 'easy',
+        skill: 'Focus'
     });
 
     // Load user and quests from localStorage
@@ -32,41 +33,12 @@ const QuestsPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
-            // Load quests for this user, or provide default quests
+            // Load quests for this user
             const storageKey = generateKey(userId, 'quests');
-            const savedQuests = getData(storageKey, null);
-            
-            if (!savedQuests) {
-                // Initialize with default quests if none exist
-                const defaultQuests = [
-                    {
-                        id: crypto.randomUUID(),
-                        title: 'Complete 7-day meditation streak',
-                        description: 'Meditate every day for a week to unlock inner peace and mental clarity',
-                        xpReward: 200,
-                        difficulty: 'medium',
-                        progress: 0,
-                        total: 7,
-                        completed: false,
-                        createdAt: new Date().toISOString()
-                    },
-                    {
-                        id: crypto.randomUUID(),
-                        title: 'Read 3 books this month',
-                        description: 'Finish reading three complete books to expand your knowledge',
-                        xpReward: 500,
-                        difficulty: 'hard',
-                        progress: 0,
-                        total: 3,
-                        completed: false,
-                        createdAt: new Date().toISOString()
-                    },
-                ];
-                setQuests(defaultQuests);
-                setData(storageKey, defaultQuests);
-            } else {
-                setQuests(savedQuests);
-            }
+            const savedQuests = getData(storageKey, []);
+
+            // Initialize with empty array if none exist
+            setQuests(savedQuests);
         };
 
         checkUser();
@@ -92,56 +64,59 @@ const QuestsPage = () => {
 
     const addXP = (amount) => {
         if (!user) return;
-        
+
         const xpKey = generateKey(user.id, 'xp');
         const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        
+
         const newCurrentXP = currentXP.currentXP + amount;
         const xpForLevelUp = currentXP.nextLevelXP;
-        
+
         let newLevel = currentXP.level;
         let finalCurrentXP = newCurrentXP;
-        
+
         if (newCurrentXP >= xpForLevelUp) {
             newLevel += 1;
             finalCurrentXP = newCurrentXP - xpForLevelUp;
         }
-        
+
         const updatedXP = {
             totalXP: Math.max(0, currentXP.totalXP + amount),
             level: Math.max(1, newLevel),
             currentXP: Math.max(0, finalCurrentXP),
             nextLevelXP: xpForLevelUp
         };
-        
+
         setData(xpKey, updatedXP);
     };
 
-    const addSkillXP = (amount) => {
+    const addSkillXP = (skillName, amount) => {
         if (!user) return;
 
         const skillsKey = generateKey(user.id, 'skills');
         const defaultSkills = [
             { name: 'Focus', currentXP: 0, level: 1 },
-            { name: 'Discipline', currentXP: 0, level: 1 },
-            { name: 'Health', currentXP: 0, level: 1 },
             { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
             { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Confidence', currentXP: 0, level: 1 },
             { name: 'Social', currentXP: 0, level: 1 }
         ];
         let skills = getData(skillsKey, defaultSkills);
-        
-        // For quests, distribute XP across all skills
-        const xpPerSkill = Math.round(amount / skills.length);
-        
+
+        // Add XP to the specified skill with leveling formula
         skills = skills.map(skill => {
-            const newXP = skill.currentXP + xpPerSkill;
-            const levelUp = newXP >= 100;
-            return {
-                ...skill,
-                currentXP: levelUp ? newXP - 100 : newXP,
-                level: levelUp ? skill.level + 1 : skill.level
-            };
+            if (skill.name === skillName) {
+                const newXP = skill.currentXP + amount;
+                const nextLevelXP = Math.floor(100 * Math.pow(skill.level, 1.5));
+                const levelUp = newXP >= nextLevelXP;
+
+                return {
+                    ...skill,
+                    currentXP: levelUp ? newXP - nextLevelXP : newXP,
+                    level: levelUp ? skill.level + 1 : skill.level
+                };
+            }
+            return skill;
         });
 
         setData(skillsKey, skills);
@@ -155,13 +130,14 @@ const QuestsPage = () => {
             description: newQuest.description,
             xpReward: parseInt(newQuest.xpReward),
             difficulty: newQuest.difficulty,
+            skill: newQuest.skill,
             progress: 0,
             total: 1,
             completed: false,
             createdAt: new Date().toISOString()
         };
         setQuests([...quests, quest]);
-        setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'easy' });
+        setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'easy', skill: 'Focus' });
         setShowModal(false);
     };
 
@@ -170,7 +146,7 @@ const QuestsPage = () => {
             if (quest.id === id) {
                 if (!quest.completed) {
                     addXP(quest.xpReward);
-                    addSkillXP(quest.xpReward);
+                    addSkillXP(quest.skill, quest.xpReward);
                 }
                 return {
                     ...quest,
@@ -345,6 +321,24 @@ const QuestsPage = () => {
                                         step="10"
                                         required
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Skill
+                                    </label>
+                                    <select
+                                        value={newQuest.skill}
+                                        onChange={(e) => setNewQuest({ ...newQuest, skill: e.target.value })}
+                                        className="w-full px-4 py-2 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                    >
+                                        <option value="Focus">Focus</option>
+                                        <option value="Learning">Learning</option>
+                                        <option value="Health">Health</option>
+                                        <option value="Creativity">Creativity</option>
+                                        <option value="Confidence">Confidence</option>
+                                        <option value="Social">Social</option>
+                                    </select>
                                 </div>
 
                                 <div>

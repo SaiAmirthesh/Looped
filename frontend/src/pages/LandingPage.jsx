@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Target, Zap, Trophy, Calendar, BarChart3, Clock, Github, Twitter, Mail, ArrowRight } from 'lucide-react';
 import Logo from '../components/Logo';
+import LightPillar from '../components/LightPillar';
 
 const LandingPage = () => {
     return (
@@ -33,14 +34,30 @@ const LandingPage = () => {
             </header>
 
             {/* HERO */}
-            <section className="max-w-7xl mx-auto px-6 py-24">
+            <section className="relative h-screen max-w-7xl mx-auto px-6 py-24">
+                <div className="h-screen-100 absolute inset-0 -mx-6">
+                    <LightPillar
+                        topColor="#b40a16"
+                        bottomColor="#110011"
+                        intensity={1}
+                        rotationSpeed={0.3}
+                        glowAmount={0.002}
+                        pillarWidth={3}
+                        pillarHeight={0.4}
+                        noiseIntensity={0.5}
+                        pillarRotation={25}
+                        interactive={false}
+                        mixBlendMode="screen"
+                        quality="high"
+                    />
+                </div>
                 <motion.div
                     initial={{ opacity: 0, y: 40 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6 }}
-                    className="text-center"
+                    className="relative text-center z-10 mt-16"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full mb-6">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-background/10 border border-primary/20 rounded-full mb-6">
                         <Zap className="w-4 h-4 text-primary" />
                         <span className="text-sm text-primary font-medium">Level Up Your Life</span>
                     </div>

@@ -5,21 +5,73 @@ import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import { User, Mail, Trophy, Target, Flame, LogOut, Moon, Sun } from 'lucide-react';
 import SkillRadarChart from '../components/SkillRadarChart';
+import { getData, generateKey } from '../lib/storage';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [theme, setTheme] = useState('dark');
+    const [playerStats, setPlayerStats] = useState({
+        level: 1,
+        currentXP: 0,
+        maxXP: 100,
+        totalXP: 0
+    });
+    const [skills, setSkills] = useState([]);
+    const [achievements, setAchievements] = useState([
+        { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: false },
+        { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: false },
+        { id: 3, title: 'Quest Master', description: 'Completed 10 quests', unlocked: false },
+        { id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill', unlocked: false },
+        { id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight', unlocked: false },
+        { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
+    ]);
 
     useEffect(() => {
         const getUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                 setUser(session.user);
+                loadProfileData(session.user.id);
             }
         };
         getUser();
     }, []);
+
+    const loadProfileData = (userId) => {
+        // Load XP data
+        const xpKey = generateKey(userId, 'xp');
+        const xpData = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+        // normalize to `maxXP` for XPBar compatibility
+        setPlayerStats({ ...xpData, maxXP: xpData.nextLevelXP });
+
+        // Load skills
+        const skillsKey = generateKey(userId, 'skills');
+        const defaultSkills = [
+            { name: 'Focus', currentXP: 0, level: 1 },
+            { name: 'Discipline', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
+            { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Social', currentXP: 0, level: 1 }
+        ];
+        const skillsData = getData(skillsKey, defaultSkills);
+        setSkills(skillsData);
+
+        // Check achievements
+        const habitsKey = generateKey(userId, 'habits');
+        const habits = getData(habitsKey, []);
+        const questsKey = generateKey(userId, 'quests');
+        const quests = getData(questsKey, []);
+        
+        const newAchievements = [...achievements];
+        if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
+        if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
+        if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
+        if (skillsData.some(s => s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
+        
+        setAchievements(newAchievements);
+    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -28,24 +80,8 @@ const ProfilePage = () => {
 
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
-        // In a real app, you'd persist this to localStorage or database
+        localStorage.setItem('looped:theme', newTheme);
     };
-
-    const playerStats = {
-        level: 12,
-        currentXP: 750,
-        maxXP: 1000,
-        totalXP: 12450
-    };
-
-    const achievements = [
-        { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: true },
-        { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: true },
-        { id: 3, title: 'Quest Master', description: 'Completed 10 quests', unlocked: true },
-        { id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill', unlocked: false },
-        { id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight', unlocked: false },
-        { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
-    ];
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -109,7 +145,7 @@ const ProfilePage = () => {
 
                         {/* Account Actions */}
                         <div className="size={400px}">
-                            <SkillRadarChart />
+                            <SkillRadarChart skills={skills} />
                         </div>
 
                     </div>

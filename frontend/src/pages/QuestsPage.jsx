@@ -1,71 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import QuestCard from '../components/QuestCard';
 import { Sword, CheckCircle, X, Plus } from 'lucide-react';
+import { getData, setData, generateKey } from '../lib/storage';
 
 const QuestsPage = () => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
     const [activeTab, setActiveTab] = useState('active');
     const [showModal, setShowModal] = useState(false);
-    const [quests, setQuests] = useState([
-        {
-            id: 1,
-            title: 'Complete 7-day meditation streak',
-            description: 'Meditate every day for a week to unlock inner peace and mental clarity',
-            xpReward: 200,
-            difficulty: 'medium',
-            progress: 5,
-            total: 7,
-            completed: false
-        },
-        {
-            id: 2,
-            title: 'Read 3 books this month',
-            description: 'Finish reading three complete books to expand your knowledge and perspective',
-            xpReward: 500,
-            difficulty: 'hard',
-            progress: 1,
-            total: 3,
-            completed: false
-        },
-        {
-            id: 3,
-            title: 'Exercise 5 times this week',
-            description: 'Complete 5 workout sessions to boost your health and energy levels',
-            xpReward: 150,
-            difficulty: 'easy',
-            progress: 3,
-            total: 5,
-            completed: false
-        },
-        {
-            id: 4,
-            title: 'Learn a new skill',
-            description: 'Spend 10 hours learning something new this month',
-            xpReward: 300,
-            difficulty: 'medium',
-            progress: 4,
-            total: 10,
-            completed: false
-        },
-        {
-            id: 5,
-            title: 'Start your journey',
-            description: 'Create your first habit and begin your adventure',
-            xpReward: 50,
-            difficulty: 'easy',
-            completed: true,
-            completedDate: '2026-01-15'
-        },
-        {
-            id: 6,
-            title: 'Early bird',
-            description: 'Wake up before 7 AM for 3 consecutive days',
-            xpReward: 100,
-            difficulty: 'medium',
-            completed: true,
-            completedDate: '2026-01-20'
-        },
-    ]);
+    const [quests, setQuests] = useState([]);
 
     const [newQuest, setNewQuest] = useState({
         title: '',
@@ -74,18 +20,145 @@ const QuestsPage = () => {
         difficulty: 'easy'
     });
 
-    const activeQuests = quests.filter(q => !q.completed);
-    const completedQuests = quests.filter(q => q.completed);
+    // Load user and quests from localStorage
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
+                return;
+            }
+
+            const userId = session.user.id;
+            setUser(session.user);
+
+            // Load quests for this user, or provide default quests
+            const storageKey = generateKey(userId, 'quests');
+            const savedQuests = getData(storageKey, null);
+            
+            if (!savedQuests) {
+                // Initialize with default quests if none exist
+                const defaultQuests = [
+                    {
+                        id: crypto.randomUUID(),
+                        title: 'Complete 7-day meditation streak',
+                        description: 'Meditate every day for a week to unlock inner peace and mental clarity',
+                        xpReward: 200,
+                        difficulty: 'medium',
+                        progress: 0,
+                        total: 7,
+                        completed: false,
+                        createdAt: new Date().toISOString()
+                    },
+                    {
+                        id: crypto.randomUUID(),
+                        title: 'Read 3 books this month',
+                        description: 'Finish reading three complete books to expand your knowledge',
+                        xpReward: 500,
+                        difficulty: 'hard',
+                        progress: 0,
+                        total: 3,
+                        completed: false,
+                        createdAt: new Date().toISOString()
+                    },
+                ];
+                setQuests(defaultQuests);
+                setData(storageKey, defaultQuests);
+            } else {
+                setQuests(savedQuests);
+            }
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+            }
+        });
+
+        return () => subscription?.unsubscribe();
+    }, [navigate]);
+
+    // Save quests to localStorage whenever they change
+    useEffect(() => {
+        if (user) {
+            const storageKey = generateKey(user.id, 'quests');
+            setData(storageKey, quests);
+        }
+    }, [quests, user]);
+
+    const addXP = (amount) => {
+        if (!user) return;
+        
+        const xpKey = generateKey(user.id, 'xp');
+        const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+        
+        const newCurrentXP = currentXP.currentXP + amount;
+        const xpForLevelUp = currentXP.nextLevelXP;
+        
+        let newLevel = currentXP.level;
+        let finalCurrentXP = newCurrentXP;
+        
+        if (newCurrentXP >= xpForLevelUp) {
+            newLevel += 1;
+            finalCurrentXP = newCurrentXP - xpForLevelUp;
+        }
+        
+        const updatedXP = {
+            totalXP: Math.max(0, currentXP.totalXP + amount),
+            level: Math.max(1, newLevel),
+            currentXP: Math.max(0, finalCurrentXP),
+            nextLevelXP: xpForLevelUp
+        };
+        
+        setData(xpKey, updatedXP);
+    };
+
+    const addSkillXP = (amount) => {
+        if (!user) return;
+
+        const skillsKey = generateKey(user.id, 'skills');
+        const defaultSkills = [
+            { name: 'Focus', currentXP: 0, level: 1 },
+            { name: 'Discipline', currentXP: 0, level: 1 },
+            { name: 'Health', currentXP: 0, level: 1 },
+            { name: 'Learning', currentXP: 0, level: 1 },
+            { name: 'Creativity', currentXP: 0, level: 1 },
+            { name: 'Social', currentXP: 0, level: 1 }
+        ];
+        let skills = getData(skillsKey, defaultSkills);
+        
+        // For quests, distribute XP across all skills
+        const xpPerSkill = Math.round(amount / skills.length);
+        
+        skills = skills.map(skill => {
+            const newXP = skill.currentXP + xpPerSkill;
+            const levelUp = newXP >= 100;
+            return {
+                ...skill,
+                currentXP: levelUp ? newXP - 100 : newXP,
+                level: levelUp ? skill.level + 1 : skill.level
+            };
+        });
+
+        setData(skillsKey, skills);
+    };
 
     const handleAddQuest = (e) => {
         e.preventDefault();
         const quest = {
-            id: Date.now(),
-            ...newQuest,
+            id: crypto.randomUUID(),
+            title: newQuest.title,
+            description: newQuest.description,
             xpReward: parseInt(newQuest.xpReward),
+            difficulty: newQuest.difficulty,
             progress: 0,
             total: 1,
-            completed: false
+            completed: false,
+            createdAt: new Date().toISOString()
         };
         setQuests([...quests, quest]);
         setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'easy' });
@@ -93,11 +166,20 @@ const QuestsPage = () => {
     };
 
     const handleToggleQuest = (id) => {
-        setQuests(quests.map(quest =>
-            quest.id === id
-                ? { ...quest, completed: !quest.completed, completedDate: !quest.completed ? new Date().toISOString().split('T')[0] : null }
-                : quest
-        ));
+        setQuests(quests.map(quest => {
+            if (quest.id === id) {
+                if (!quest.completed) {
+                    addXP(quest.xpReward);
+                    addSkillXP(quest.xpReward);
+                }
+                return {
+                    ...quest,
+                    completed: !quest.completed,
+                    completedDate: !quest.completed ? new Date().toISOString().split('T')[0] : null
+                };
+            }
+            return quest;
+        }));
     };
 
     const handleDeleteQuest = (id) => {
@@ -106,6 +188,8 @@ const QuestsPage = () => {
         }
     };
 
+    const activeQuests = quests.filter(q => !q.completed);
+    const completedQuests = quests.filter(q => q.completed);
     const totalXPEarned = completedQuests.reduce((sum, quest) => sum + quest.xpReward, 0);
     const totalXPAvailable = activeQuests.reduce((sum, quest) => sum + quest.xpReward, 0);
 

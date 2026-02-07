@@ -7,11 +7,21 @@ import StatCard from '../components/StatCard';
 import HabitCard from '../components/HabitCard';
 import QuestCard from '../components/QuestCard';
 import { Target, Trophy, Flame, TrendingUp } from 'lucide-react';
+import { getData, generateKey, setData } from '../lib/storage';
 
 const Dashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [playerStats, setPlayerStats] = useState({
+        level: 1,
+        currentXP: 0,
+        maxXP: 100,
+        totalXP: 0
+    });
+    const [dailyHabits, setDailyHabits] = useState([]);
+    const [activeQuests, setActiveQuests] = useState([]);
+    const [currentStreak, setCurrentStreak] = useState(0);
 
     useEffect(() => {
         // Check if user is authenticated
@@ -23,8 +33,8 @@ const Dashboard = () => {
                 return;
             }
 
+            loadDashboardData(session.user.id);
             setUser(session.user);
-            setLoading(false);
         };
 
         checkUser();
@@ -35,15 +45,150 @@ const Dashboard = () => {
                 navigate('/login');
             } else {
                 setUser(session.user);
+                loadDashboardData(session.user.id);
             }
         });
 
         return () => subscription.unsubscribe();
     }, [navigate]);
 
+    const loadDashboardData = (userId) => {
+        // Load XP data
+        const xpKey = generateKey(userId, 'xp');
+        const xpData = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+        // normalize to `maxXP` for XPBar compatibility
+        setPlayerStats({ ...xpData, maxXP: xpData.nextLevelXP });
+
+        // Load habits
+        const habitsKey = generateKey(userId, 'habits');
+        const habits = getData(habitsKey, []);
+        const todayHabits = habits.slice(0, 4).map(h => ({
+            id: h.id,
+            title: h.title,
+            category: h.category,
+            streak: h.streak,
+            completed: h.completedToday
+        }));
+        setDailyHabits(todayHabits);
+
+        // Calculate current streak
+        const streaks = habits.map(h => h.streak);
+        const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
+        setCurrentStreak(maxStreak);
+
+        // Load quests
+        const questsKey = generateKey(userId, 'quests');
+        const quests = getData(questsKey, []);
+        const active = quests.filter(q => !q.completed).slice(0, 2).map(q => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            xpReward: q.xpReward,
+            difficulty: q.difficulty,
+            completed: q.completed
+        }));
+        setActiveQuests(active);
+
+        setLoading(false);
+    };
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
+    };
+
+    const handleToggleHabit = (habitId) => {
+        const habitsKey = generateKey(user.id, 'habits');
+        const habits = getData(habitsKey, []);
+        const today = new Date().toISOString().split('T')[0];
+        
+        const updatedHabits = habits.map(habit => {
+            if (habit.id === habitId) {
+                const completedToday = !habit.completedToday;
+                const xpValue = 10;
+                
+                // Handle XP
+                const xpKey = generateKey(user.id, 'xp');
+                const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+                const newCurrentXP = currentXP.currentXP + (completedToday ? xpValue : -xpValue);
+                const updatedXP = {
+                    totalXP: Math.max(0, currentXP.totalXP + (completedToday ? xpValue : -xpValue)),
+                    level: newCurrentXP >= currentXP.nextLevelXP ? currentXP.level + 1 : currentXP.level,
+                    currentXP: Math.max(0, newCurrentXP),
+                    nextLevelXP: currentXP.nextLevelXP
+                };
+                setData(xpKey, updatedXP);
+                setPlayerStats(updatedXP);
+
+                if (completedToday) {
+                    const lastCompleted = habit.lastCompleted === today ? habit.lastCompleted : today;
+                    const sameDay = habit.lastCompleted === today;
+                    return {
+                        ...habit,
+                        completedToday: true,
+                        lastCompleted: lastCompleted,
+                        streak: sameDay ? habit.streak : habit.streak + 1
+                    };
+                } else {
+                    return {
+                        ...habit,
+                        completedToday: false
+                    };
+                }
+            }
+            return habit;
+        });
+        
+        setData(habitsKey, updatedHabits);
+        const updated = updatedHabits.slice(0, 4).map(h => ({
+            id: h.id,
+            title: h.title,
+            category: h.category,
+            streak: h.streak,
+            completed: h.completedToday
+        }));
+        setDailyHabits(updated);
+    };
+
+    const handleToggleQuest = (questId) => {
+        const questsKey = generateKey(user.id, 'quests');
+        const quests = getData(questsKey, []);
+        
+        const updatedQuests = quests.map(quest => {
+            if (quest.id === questId) {
+                if (!quest.completed) {
+                    // Award XP
+                    const xpKey = generateKey(user.id, 'xp');
+                    const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+                    const newCurrentXP = currentXP.currentXP + quest.xpReward;
+                    const updatedXP = {
+                        totalXP: currentXP.totalXP + quest.xpReward,
+                        level: newCurrentXP >= currentXP.nextLevelXP ? currentXP.level + 1 : currentXP.level,
+                        currentXP: newCurrentXP,
+                        nextLevelXP: currentXP.nextLevelXP
+                    };
+                    setData(xpKey, updatedXP);
+                    setPlayerStats(updatedXP);
+                }
+                return {
+                    ...quest,
+                    completed: !quest.completed,
+                    completedDate: !quest.completed ? new Date().toISOString().split('T')[0] : null
+                };
+            }
+            return quest;
+        });
+        
+        setData(questsKey, updatedQuests);
+        const active = updatedQuests.filter(q => !q.completed).slice(0, 2).map(q => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            xpReward: q.xpReward,
+            difficulty: q.difficulty,
+            completed: q.completed
+        }));
+        setActiveQuests(active);
     };
 
     if (loading) {
@@ -57,37 +202,7 @@ const Dashboard = () => {
         );
     }
 
-    // Dummy data
-    const playerStats = {
-        level: 12,
-        currentXP: 750,
-        maxXP: 1000,
-        totalXP: 12450
-    };
-
-    const dailyHabits = [
-        { id: 1, title: 'Morning meditation', streak: 7, completed: true },
-        { id: 2, title: 'Read for 30 minutes', streak: 3, completed: false },
-        { id: 3, title: 'Exercise', streak: 5, completed: true },
-        { id: 4, title: 'Drink 8 glasses of water', streak: 12, completed: false },
-    ];
-
-    const activeQuests = [
-        {
-            id: 1,
-            title: 'Complete 7-day meditation streak',
-            description: 'Meditate every day for a week to unlock inner peace',
-            xpReward: 200,
-            difficulty: 'medium'
-        },
-        {
-            id: 2,
-            title: 'Read 3 books this month',
-            description: 'Finish reading three complete books to expand your knowledge',
-            xpReward: 500,
-            difficulty: 'hard'
-        },
-    ];
+    const habitsCompleteCount = dailyHabits.filter(h => h.completed).length;
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -132,13 +247,13 @@ const Dashboard = () => {
                     />
                     <StatCard
                         title="Habits Completed"
-                        value="156"
+                        value={habitsCompleteCount.toString()}
                         icon={<Target className="w-6 h-6 text-chart-2" />}
-                        subtitle="This month"
+                        subtitle="Today"
                     />
                     <StatCard
                         title="Current Streak"
-                        value="7 days"
+                        value={`${currentStreak} days`}
                         icon={<Flame className="w-6 h-6 text-chart-1" />}
                         subtitle="Keep it up!"
                     />
@@ -162,9 +277,11 @@ const Dashboard = () => {
                         {dailyHabits.map(habit => (
                             <HabitCard
                                 key={habit.id}
-                                title={habit.title}
+                                name={habit.title}
                                 streak={habit.streak}
                                 completed={habit.completed}
+                                category={habit.category}
+                                onToggle={() => handleToggleHabit(habit.id)}
                             />
                         ))}
                     </div>
@@ -181,6 +298,7 @@ const Dashboard = () => {
                                 description={quest.description}
                                 xpReward={quest.xpReward}
                                 difficulty={quest.difficulty}
+                                onToggle={() => handleToggleQuest(quest.id)}
                             />
                         ))}
                     </div>

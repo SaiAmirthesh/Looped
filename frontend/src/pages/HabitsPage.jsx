@@ -1,32 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import HabitCard from '../components/HabitCard';
 import { Plus, X, Filter } from 'lucide-react';
+import { getData, setData, generateKey } from '../lib/storage';
 
 const HabitsPage = () => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
     const [filter, setFilter] = useState('all');
     const [showModal, setShowModal] = useState(false);
-    const [habits, setHabits] = useState([
-        { id: 1, name: 'Morning Meditation', streak: 7, completed: false, category: 'Wellness' },
-        { id: 2, name: 'Read for 30 minutes', streak: 12, completed: true, category: 'Learning' },
-        { id: 3, name: 'Exercise', streak: 5, completed: false, category: 'Health' },
-        { id: 4, name: 'Drink 8 glasses of water', streak: 15, completed: true, category: 'Health' },
-        { id: 5, name: 'Journal', streak: 3, completed: false, category: 'Wellness' },
-        { id: 6, name: 'Code for 1 hour', streak: 20, completed: false, category: 'Learning' },
-    ]);
+    const [habits, setHabits] = useState([]);
 
     const [newHabit, setNewHabit] = useState({
         name: '',
         category: 'Wellness'
     });
 
+    // Load user and habits from localStorage
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
+                return;
+            }
+
+            const userId = session.user.id;
+            setUser(session.user);
+
+            // Load habits for this user
+            const storageKey = generateKey(userId, 'habits');
+            const savedHabits = getData(storageKey, []);
+            
+            // Reset completed status for new day
+            const today = new Date().toISOString().split('T')[0];
+            const resettedHabits = savedHabits.map(habit => {
+                if (habit.lastCompleted !== today && habit.completedToday) {
+                    return { ...habit, completedToday: false };
+                }
+                return habit;
+            });
+            
+            setHabits(resettedHabits);
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+            }
+        });
+
+        return () => subscription?.unsubscribe();
+    }, [navigate]);
+
+    // Save habits to localStorage whenever they change
+    useEffect(() => {
+        if (user) {
+            const storageKey = generateKey(user.id, 'habits');
+            setData(storageKey, habits);
+        }
+    }, [habits, user]);
+
+    const addXP = (amount) => {
+        if (!user) return;
+        
+        const xpKey = generateKey(user.id, 'xp');
+        const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
+        
+        const newCurrentXP = currentXP.currentXP + amount;
+        const xpForLevelUp = currentXP.nextLevelXP;
+        
+        let newLevel = currentXP.level;
+        let finalCurrentXP = newCurrentXP;
+        
+        if (newCurrentXP >= xpForLevelUp) {
+            newLevel += 1;
+            finalCurrentXP = newCurrentXP - xpForLevelUp;
+        }
+        
+        const updatedXP = {
+            totalXP: currentXP.totalXP + amount,
+            level: newLevel,
+            currentXP: finalCurrentXP,
+            nextLevelXP: xpForLevelUp
+        };
+        
+        setData(xpKey, updatedXP);
+    };
+
     const handleAddHabit = (e) => {
         e.preventDefault();
+        if (!newHabit.name.trim()) return;
+        
         const habit = {
-            id: Date.now(),
-            ...newHabit,
+            id: crypto.randomUUID(),
+            title: newHabit.name,
+            category: newHabit.category,
             streak: 0,
-            completed: false
+            completedToday: false,
+            lastCompleted: null,
+            createdAt: new Date().toISOString()
         };
         setHabits([...habits, habit]);
         setNewHabit({ name: '', category: 'Wellness' });
@@ -34,11 +113,30 @@ const HabitsPage = () => {
     };
 
     const handleToggleHabit = (id) => {
-        setHabits(habits.map(habit =>
-            habit.id === id
-                ? { ...habit, completed: !habit.completed, streak: !habit.completed ? habit.streak + 1 : habit.streak }
-                : habit
-        ));
+        const today = new Date().toISOString().split('T')[0];
+        const updatedHabits = habits.map(habit => {
+            if (habit.id === id) {
+                const completedToday = !habit.completedToday;
+                if (completedToday) {
+                    const lastCompleted = habit.lastCompleted === today ? habit.lastCompleted : today;
+                    const sameDay = habit.lastCompleted === today;
+                    addXP(10); // Award XP on completion
+                    return {
+                        ...habit,
+                        completedToday: true,
+                        lastCompleted: lastCompleted,
+                        streak: sameDay ? habit.streak : habit.streak + 1
+                    };
+                } else {
+                    return {
+                        ...habit,
+                        completedToday: false
+                    };
+                }
+            }
+            return habit;
+        });
+        setHabits(updatedHabits);
     };
 
     const handleDeleteHabit = (id) => {
@@ -48,13 +146,13 @@ const HabitsPage = () => {
     };
 
     const filteredHabits = habits.filter(habit => {
-        if (filter === 'active') return !habit.completed;
-        if (filter === 'completed') return habit.completed;
+        if (filter === 'active') return !habit.completedToday;
+        if (filter === 'completed') return habit.completedToday;
         return true;
     });
 
     const totalHabits = habits.length;
-    const completedToday = habits.filter(h => h.completed).length;
+    const completedToday = habits.filter(h => h.completedToday).length;
     const longestStreak = habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0;
 
     return (
@@ -148,9 +246,9 @@ const HabitsPage = () => {
                     {filteredHabits.map(habit => (
                         <HabitCard
                             key={habit.id}
-                            name={habit.name}
+                            name={habit.title}
                             streak={habit.streak}
-                            completed={habit.completed}
+                            completed={habit.completedToday}
                             category={habit.category}
                             onToggle={() => handleToggleHabit(habit.id)}
                             onDelete={() => handleDeleteHabit(habit.id)}

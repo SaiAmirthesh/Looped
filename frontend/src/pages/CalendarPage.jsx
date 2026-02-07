@@ -1,11 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
+import { getData, generateKey } from '../lib/storage';
 
 const CalendarPage = () => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [dailyStatus, setDailyStatus] = useState({}); // Store completion status per day
+    const [dailyXP, setDailyXP] = useState({});
+    const [currentStreak, setCurrentStreak] = useState(0);
 
-    // Generate calendar days
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
+                return;
+            }
+
+            const userId = session.user.id;
+            setUser(session.user);
+
+            // Calculate daily status and XP for the current month
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const habitsKey = generateKey(userId, 'habits');
+            const habits = getData(habitsKey, []);
+            
+            const statusMap = {};
+            const xpMap = {};
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                // Count habits completed on this day
+                const habitsCompletedCount = habits.filter(h => h.lastCompleted === dateStr).length;
+                const totalHabits = habits.length;
+                
+                // Determine completion status: green (100%), orange (>0%), red (0%)
+                let status = 'no'; // red - no completion
+                if (totalHabits > 0) {
+                    const completionPercent = (habitsCompletedCount / totalHabits) * 100;
+                    if (completionPercent === 100) {
+                        status = 'full'; // green - full completion
+                    } else if (completionPercent > 0) {
+                        status = 'partial'; // orange - partial completion
+                    }
+                }
+                
+                const habitXP = habitsCompletedCount * 10; // 10 XP per habit
+                
+                // Check focus sessions for that day
+                const focusKey = generateKey(userId, `focusSessions:${dateStr}`);
+                const focusSessions = getData(focusKey, []);
+                const focusXP = focusSessions.filter(s => s.type === 'focus').length * 15; // 15 XP per focus session
+                
+                const totalDayXP = habitXP + focusXP;
+                if (totalDayXP > 0) {
+                    xpMap[day] = totalDayXP;
+                }
+                
+                if (status !== 'no' || totalDayXP > 0) {
+                    statusMap[day] = status;
+                }
+            }
+            
+            setDailyStatus(statusMap);
+            setDailyXP(xpMap);
+
+            // Calculate current streak
+            const streaks = habits.map(h => h.streak);
+            const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
+            setCurrentStreak(maxStreak);
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+            }
+        });
+
+        return () => subscription?.unsubscribe();
+    }, [navigate, currentDate]);
+
     const getDaysInMonth = (date) => {
         const year = date.getFullYear();
         const month = date.getMonth();
@@ -18,13 +104,6 @@ const CalendarPage = () => {
     };
 
     const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentDate);
-
-    // Dummy data for XP per day
-    const dailyXP = {
-        1: 150, 3: 200, 5: 180, 7: 220, 8: 150, 10: 190, 12: 200,
-        14: 180, 15: 210, 17: 150, 19: 200, 21: 180, 22: 220,
-        24: 190, 26: 200, 28: 180
-    };
 
     const monthNames = [
         'January', 'February', 'March', 'April', 'May', 'June',
@@ -44,6 +123,7 @@ const CalendarPage = () => {
     const totalXPThisMonth = Object.values(dailyXP).reduce((sum, xp) => sum + xp, 0);
     const activeDays = Object.keys(dailyXP).length;
     const averageXP = activeDays > 0 ? Math.round(totalXPThisMonth / activeDays) : 0;
+    const maxDayXP = Object.values(dailyXP).length > 0 ? Math.max(...Object.values(dailyXP)) : 0;
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -77,7 +157,7 @@ const CalendarPage = () => {
                             <TrendingUp className="w-5 h-5 text-primary" />
                             <span className="text-muted-foreground text-sm">Current Streak</span>
                         </div>
-                        <div className="text-3xl font-bold text-foreground">7 days</div>
+                        <div className="text-3xl font-bold text-foreground">{currentStreak} days</div>
                         <div className="text-sm text-muted-foreground mt-1">Keep it going! 🔥</div>
                     </div>
                 </div>
@@ -122,26 +202,38 @@ const CalendarPage = () => {
                         {/* Calendar days */}
                         {Array.from({ length: daysInMonth }).map((_, index) => {
                             const day = index + 1;
+                            const status = dailyStatus[day] || 'no';
                             const hasXP = dailyXP[day];
                             const isToday = day === new Date().getDate() &&
                                 currentDate.getMonth() === new Date().getMonth() &&
                                 currentDate.getFullYear() === new Date().getFullYear();
 
+                            let dayClassName = 'aspect-square border-2 rounded-lg p-2 flex flex-col items-center justify-center transition-all cursor-pointer ';
+
+                            if (isToday) {
+                                dayClassName += 'border-primary bg-primary/10 font-bold';
+                            } else if (status === 'full') {
+                                // All habits completed on this day
+                                dayClassName += 'border-green-500/60 bg-green-500/50 hover:bg-green-500/60';
+                            } else if (status === 'partial') {
+                                // Some habits completed
+                                dayClassName += 'border-orange-500/60 bg-orange-500/50 hover:bg-orange-500/60';
+                            } else {
+                                // No habits completed
+                                dayClassName += 'border-red-500/60 bg-red-500/50 hover:bg-red-500/60';
+                            }
+
                             return (
                                 <div
                                     key={day}
-                                    className={`aspect-square border-2 rounded-lg p-2 flex flex-col items-center justify-center transition-all cursor-pointer ${isToday
-                                            ? 'border-primary bg-primary/10 font-bold'
-                                            : hasXP
-                                                ? 'border-chart-2/40 bg-chart-2/10 hover:bg-chart-2/20'
-                                                : 'border-border hover:border-muted-foreground/30'
-                                        }`}
+                                    className={dayClassName}
+                                    title={`${status === 'full' ? 'Full completion' : status === 'partial' ? 'Partial completion' : 'No habits completed'}`}
                                 >
                                     <span className={`text-sm ${isToday ? 'text-primary' : 'text-foreground'}`}>
                                         {day}
                                     </span>
                                     {hasXP && (
-                                        <span className="text-xs text-chart-2 font-semibold mt-1">
+                                        <span className="text-xs text-muted-foreground font-semibold mt-1">
                                             +{hasXP}
                                         </span>
                                     )}
@@ -157,12 +249,16 @@ const CalendarPage = () => {
                             <span className="text-muted-foreground">Today</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-chart-2/40 bg-chart-2/10 rounded"></div>
-                            <span className="text-muted-foreground">XP Earned</span>
+                            <div className="w-4 h-4 border-2 border-green-500/60 bg-green-500/50 rounded"></div>
+                            <span className="text-muted-foreground">Full Completion</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-border rounded"></div>
-                            <span className="text-muted-foreground">No Activity</span>
+                            <div className="w-4 h-4 border-2 border-orange-500/60 bg-orange-500/50 rounded"></div>
+                            <span className="text-muted-foreground">Partial Completion</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-red-500/60 bg-red-500/50 rounded"></div>
+                            <span className="text-muted-foreground">No Completion</span>
                         </div>
                     </div>
                 </div>
@@ -180,7 +276,7 @@ const CalendarPage = () => {
                         <div className="flex items-start gap-2">
                             <span className="text-primary">•</span>
                             <span className="text-muted-foreground">
-                                Your highest XP day was <strong className="text-foreground">{Math.max(...Object.values(dailyXP))} XP</strong>
+                                Your highest XP day was <strong className="text-foreground">{maxDayXP} XP</strong>
                             </span>
                         </div>
                         <div className="flex items-start gap-2">

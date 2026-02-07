@@ -1,68 +1,105 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import StatCard from '../components/StatCard';
 import { Target, Brain, Heart, BookOpen, Palette, Users } from 'lucide-react';
+import { getData, generateKey } from '../lib/storage';
 
 const SkillsPage = () => {
-    const skills = [
-        {
-            name: 'Focus',
-            level: 8,
-            currentXP: 650,
-            maxXP: 1000,
-            progress: 65,
-            icon: <Target className="w-6 h-6 text-primary" />,
-            description: 'Your ability to concentrate and complete tasks without distraction'
-        },
-        {
-            name: 'Discipline',
-            level: 6,
-            currentXP: 400,
-            maxXP: 1000,
-            progress: 40,
-            icon: <Brain className="w-6 h-6 text-chart-2" />,
-            description: 'Consistency in following through with your commitments'
-        },
-        {
-            name: 'Health',
-            level: 7,
-            currentXP: 550,
-            maxXP: 1000,
-            progress: 55,
-            icon: <Heart className="w-6 h-6 text-chart-1" />,
-            description: 'Physical and mental well-being through healthy habits'
-        },
-        {
-            name: 'Learning',
-            level: 9,
-            currentXP: 800,
-            maxXP: 1000,
-            progress: 80,
-            icon: <BookOpen className="w-6 h-6 text-chart-4" />,
-            description: 'Knowledge acquisition and continuous self-improvement'
-        },
-        {
-            name: 'Creativity',
-            level: 5,
-            currentXP: 300,
-            maxXP: 1000,
-            progress: 30,
-            icon: <Palette className="w-6 h-6 text-chart-3" />,
-            description: 'Innovative thinking and creative problem-solving'
-        },
-        {
-            name: 'Social',
-            level: 4,
-            currentXP: 200,
-            maxXP: 1000,
-            progress: 20,
-            icon: <Users className="w-6 h-6 text-chart-5" />,
-            description: 'Building and maintaining meaningful relationships'
-        },
-    ];
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [skills, setSkills] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
+                return;
+            }
+
+            const userId = session.user.id;
+            setUser(session.user);
+
+            // Load skills for this user
+            const skillsKey = generateKey(userId, 'skills');
+            const defaultSkills = [
+                { name: 'Focus', currentXP: 0, level: 1 },
+                { name: 'Discipline', currentXP: 0, level: 1 },
+                { name: 'Health', currentXP: 0, level: 1 },
+                { name: 'Learning', currentXP: 0, level: 1 },
+                { name: 'Creativity', currentXP: 0, level: 1 },
+                { name: 'Social', currentXP: 0, level: 1 }
+            ];
+            const skillsData = getData(skillsKey, defaultSkills);
+            
+            const enrichedSkills = skillsData.map(skill => {
+                const maxXP = 100;
+                return {
+                    ...skill,
+                    maxXP,
+                    progress: Math.min(skill.currentXP, maxXP),
+                    icon: getSkillIcon(skill.name),
+                    description: getSkillDescription(skill.name)
+                };
+            });
+            
+            setSkills(enrichedSkills);
+            setLoading(false);
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+            }
+        });
+
+        return () => subscription?.unsubscribe();
+    }, [navigate]);
+
+    const getSkillIcon = (skillName) => {
+        const iconMap = {
+            'Focus': <Target className="w-6 h-6 text-primary" />,
+            'Discipline': <Brain className="w-6 h-6 text-chart-2" />,
+            'Health': <Heart className="w-6 h-6 text-chart-1" />,
+            'Learning': <BookOpen className="w-6 h-6 text-chart-4" />,
+            'Creativity': <Palette className="w-6 h-6 text-chart-3" />,
+            'Social': <Users className="w-6 h-6 text-chart-5" />
+        };
+        return iconMap[skillName] || <Target className="w-6 h-6 text-primary" />;
+    };
+
+    const getSkillDescription = (skillName) => {
+        const descMap = {
+            'Focus': 'Your ability to concentrate and complete tasks without distraction',
+            'Discipline': 'Consistency in following through with your commitments',
+            'Health': 'Physical and mental well-being through healthy habits',
+            'Learning': 'Knowledge acquisition and continuous self-improvement',
+            'Creativity': 'Innovative thinking and creative problem-solving',
+            'Social': 'Building and maintaining meaningful relationships'
+        };
+        return descMap[skillName] || '';
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading your skills...</p>
+                </div>
+            </div>
+        );
+    }
 
     const totalLevel = skills.reduce((sum, skill) => sum + skill.level, 0);
-    const averageLevel = (totalLevel / skills.length).toFixed(1);
+    const averageLevel = skills.length > 0 ? (totalLevel / skills.length).toFixed(1) : 0;
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -96,10 +133,10 @@ const SkillsPage = () => {
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="text-muted-foreground text-sm mb-2">Highest Skill</div>
                         <div className="text-3xl font-bold text-foreground">
-                            {skills.reduce((max, skill) => skill.level > max.level ? skill : max).name}
+                            {skills.length > 0 ? skills.reduce((max, skill) => skill.level > max.level ? skill : max).name : 'N/A'}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
-                            Level {Math.max(...skills.map(s => s.level))}
+                            Level {skills.length > 0 ? Math.max(...skills.map(s => s.level)) : 0}
                         </div>
                     </div>
                 </div>

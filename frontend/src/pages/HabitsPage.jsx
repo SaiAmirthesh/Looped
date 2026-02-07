@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import HabitCard from '../components/HabitCard';
-import { Plus, X, Filter } from 'lucide-react';
+import { Plus, X, Filter, Flame } from 'lucide-react';
 import { getData, setData, generateKey } from '../lib/storage';
 import { runMigrations } from '../lib/migrations';
 
@@ -253,7 +253,7 @@ const HabitsPage = () => {
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-muted-foreground text-sm">Longest Streak</span>
-                            <span className="text-2xl">🔥</span>
+                            <Flame className="w-6 h-6 text-orange-500" />
                         </div>
                         <div className="text-3xl font-bold text-foreground">{longestStreak}</div>
                         <div className="text-sm text-muted-foreground mt-1">Days in a row</div>

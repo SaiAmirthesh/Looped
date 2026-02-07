@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
-import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, Flame } from 'lucide-react';
 import { getData, generateKey } from '../lib/storage';
 
 const CalendarPage = () => {
@@ -186,7 +186,9 @@ const CalendarPage = () => {
                             <span className="text-muted-foreground text-sm">Current Streak</span>
                         </div>
                         <div className="text-3xl font-bold text-foreground">{currentStreak} days</div>
-                        <div className="text-sm text-muted-foreground mt-1">Keep it going! 🔥</div>
+                        <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                            Keep it going! <Flame className="w-4 h-4 text-orange-500 inline" />
+                        </div>
                     </div>
                 </div>
 
@@ -261,10 +263,10 @@ const CalendarPage = () => {
                                     className={dayClassName}
                                     title={`${status === 'full' ? 'Full completion' : status === 'partial' ? 'Partial completion' : status === 'unattended' ? 'Unattended' : 'No habits completed'}`}
                                 >
-                                    {/* Fire emoji with streak in top-right corner */}
+                                    {/* Flame icon with streak in top-right corner */}
                                     {streak && (
-                                        <span className="absolute top-0 right-0 text-xs">
-                                            🔥{streak}
+                                        <span className="absolute top-0 right-0 text-xs flex items-center gap-0.5">
+                                            <Flame className="w-3 h-3 text-orange-500" />{streak}
                                         </span>
                                     )}
                                     <span className={`text-sm ${isToday ? 'text-primary' : 'text-foreground'}`}>

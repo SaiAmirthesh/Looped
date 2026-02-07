@@ -1,3 +1,5 @@
+import { Flame } from 'lucide-react';
+
 export default function HabitCard({
   name = "New Habit",
   streak = 0,
@@ -50,7 +52,7 @@ export default function HabitCard({
       {/* Right: Streak + Delete */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-lg">🔥</span>
+          <Flame className="w-5 h-5 text-orange-500" />
           <span className="font-semibold text-foreground">{streak}</span>
           <span className="text-muted-foreground text-xs">days</span>
         </div>

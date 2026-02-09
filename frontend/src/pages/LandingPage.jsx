@@ -8,7 +8,6 @@ import LightPillar from '../components/LightPillar';
 const LandingPage = () => {
     return (
         <div className="bg-background text-foreground min-h-screen">
-            {/* HEADER */}
             <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -33,7 +32,6 @@ const LandingPage = () => {
                 </div>
             </header>
 
-            {/* HERO */}
             <section className="relative h-screen max-w-7xl mx-auto px-6 py-24">
                 <div className="h-screen-100 absolute inset-0 -mx-6">
                     <LightPillar
@@ -91,7 +89,6 @@ const LandingPage = () => {
             </section>
 
 
-            {/* FEATURES */}
             <section id="features" className="bg-card border-y border-border py-24">
                 <div className="max-w-7xl mx-auto px-6">
                     <motion.div
@@ -129,7 +126,6 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* HOW IT WORKS */}
             <section className="max-w-7xl mx-auto px-6 py-24">
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -161,7 +157,6 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* BENEFITS */}
             <section className="bg-card border-y border-border py-24">
                 <div className="max-w-7xl mx-auto px-6">
                     <motion.div
@@ -187,7 +182,7 @@ const LandingPage = () => {
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
-                                transition={{ delay: index * 0.1 }}
+                                transition={{ delay: index * 0.2 }}
                                 className="relative bg-background border border-border rounded-xl p-6"
                             >
                                 {/* Accent dot */}
@@ -205,7 +200,6 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* CTA */}
             <section className="max-w-7xl mx-auto px-6 py-24">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -228,7 +222,6 @@ const LandingPage = () => {
                 </motion.div>
             </section>
 
-            {/* CONTACT */}
             <section className="bg-card border-t border-border py-16">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="grid md:grid-cols-2 gap-12">
@@ -283,7 +276,6 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* FOOTER */}
             <footer className="border-t border-border py-8">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">

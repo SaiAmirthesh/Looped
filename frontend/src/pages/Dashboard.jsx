@@ -24,7 +24,6 @@ const Dashboard = () => {
     const [currentStreak, setCurrentStreak] = useState(0);
 
     useEffect(() => {
-        // Check if user is authenticated
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
 
@@ -53,13 +52,10 @@ const Dashboard = () => {
     }, [navigate]);
 
     const loadDashboardData = (userId) => {
-        // Load XP data
         const xpKey = generateKey(userId, 'xp');
         const xpData = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        // normalize to `maxXP` for XPBar compatibility
         setPlayerStats({ ...xpData, maxXP: xpData.nextLevelXP });
 
-        // Load habits
         const habitsKey = generateKey(userId, 'habits');
         const habits = getData(habitsKey, []);
         const todayHabits = habits.slice(0, 4).map(h => ({
@@ -71,12 +67,10 @@ const Dashboard = () => {
         }));
         setDailyHabits(todayHabits);
 
-        // Calculate current streak
         const streaks = habits.map(h => h.streak);
         const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
         setCurrentStreak(maxStreak);
 
-        // Load quests
         const questsKey = generateKey(userId, 'quests');
         const quests = getData(questsKey, []);
         const active = quests.filter(q => !q.completed).slice(0, 2).map(q => ({
@@ -140,11 +134,9 @@ const Dashboard = () => {
                 const completedToday = !habit.completedToday;
                 const xpValue = 10;
 
-                // Handle XP with proper leveling formula
                 const xpKey = generateKey(user.id, 'xp');
                 const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
 
-                // Always calculate nextLevelXP based on current level to ensure it's correct
                 const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
 
                 const newCurrentXP = currentXP.currentXP + (completedToday ? xpValue : -xpValue);
@@ -168,7 +160,6 @@ const Dashboard = () => {
                 setData(xpKey, updatedXP);
                 setPlayerStats(updatedXP);
 
-                // Add XP to the habit's associated skill
                 if (habit.skill) {
                     addSkillXP(habit.skill, 10);
                 }
@@ -210,11 +201,9 @@ const Dashboard = () => {
         const updatedQuests = quests.map(quest => {
             if (quest.id === questId) {
                 if (!quest.completed) {
-                    // Award XP with proper leveling formula
                     const xpKey = generateKey(user.id, 'xp');
                     const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
 
-                    // Always calculate nextLevelXP based on current level to ensure it's correct
                     const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
 
                     const newCurrentXP = currentXP.currentXP + quest.xpReward;
@@ -238,7 +227,6 @@ const Dashboard = () => {
                     setData(xpKey, updatedXP);
                     setPlayerStats(updatedXP);
 
-                    // Add XP to the quest's associated skill
                     if (quest.skill) {
                         addSkillXP(quest.skill, quest.xpReward);
                     }
@@ -282,7 +270,6 @@ const Dashboard = () => {
             <Navigation />
 
             <main className="flex-1 ml-10 p-8">
-                {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-foreground mb-2">
@@ -298,7 +285,6 @@ const Dashboard = () => {
                     </button>
                 </div>
 
-                {/* Player Stats */}
                 <div className="mb-8">
                     <h2 className="text-xl font-semibold text-foreground mb-4">Player Stats</h2>
                     <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
@@ -310,7 +296,6 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <StatCard
                         title="Total XP"
@@ -338,7 +323,6 @@ const Dashboard = () => {
                     />
                 </div>
 
-                {/* Daily Habits */}
                 <div className="mb-8">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold text-foreground">Daily Habits</h2>
@@ -360,7 +344,6 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Active Quests */}
                 <div className="mb-8">
                     <h2 className="text-xl font-semibold text-foreground mb-4">Active Quests</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-30 ">
@@ -377,7 +360,6 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Quick Actions */}
                 <div className="mt-15 bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
                     <h3 className="text-lg text-foreground font-semibold mb-4">Quick Actions</h3>
                     <div className="flex gap-4 flex-wrap">

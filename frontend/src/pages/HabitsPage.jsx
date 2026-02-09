@@ -22,7 +22,6 @@ const HabitsPage = () => {
     skill: "Focus",
   });
 
-  // Load user and habits from localStorage
   useEffect(() => {
     const checkUser = async () => {
       const {
@@ -36,14 +35,11 @@ const HabitsPage = () => {
       const userId = session.user.id;
       setUser(session.user);
 
-      // Run migrations to fix old data
       runMigrations(userId);
 
-      // Load habits for this user
       const storageKey = generateKey(userId, "habits");
       const savedHabits = getData(storageKey, []);
 
-      // Reset completed status for new day
       const today = new Date().toISOString().split("T")[0];
       const resettedHabits = savedHabits.map((habit) => {
         if (habit.lastCompleted !== today && habit.completedToday) {
@@ -70,7 +66,6 @@ const HabitsPage = () => {
     return () => subscription?.unsubscribe();
   }, [navigate]);
 
-  // Save habits to localStorage whenever they change
   useEffect(() => {
     if (user) {
       const storageKey = generateKey(user.id, "habits");
@@ -89,7 +84,6 @@ const HabitsPage = () => {
       nextLevelXP: 100,
     });
 
-    // Always calculate nextLevelXP based on current level to ensure it's correct
     const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
 
     const newCurrentXP = currentXP.currentXP + amount;
@@ -99,7 +93,6 @@ const HabitsPage = () => {
     let finalCurrentXP = newCurrentXP;
     let newNextLevelXP = currentNextLevelXP;
 
-    // Handle level up with proper formula: nextLevelXP = 100 * (level ^ 1.5)
     if (newCurrentXP >= xpForLevelUp) {
       newLevel += 1;
       finalCurrentXP = newCurrentXP - xpForLevelUp;
@@ -130,7 +123,6 @@ const HabitsPage = () => {
     ];
     let skills = getData(skillsKey, defaultSkills);
 
-    // Add XP to the specified skill with leveling formula
     skills = skills.map((skill) => {
       if (skill.name === skillName) {
         const newXP = skill.currentXP + amount;
@@ -178,10 +170,8 @@ const HabitsPage = () => {
             habit.lastCompleted === today ? habit.lastCompleted : today;
           const sameDay = habit.lastCompleted === today;
 
-          // Add XP to overall player XP
           addXP(10);
 
-          // Add XP to the habit's associated skill (if it has one)
           if (habit.skill) {
             addSkillXP(habit.skill, 10);
           }
@@ -291,7 +281,6 @@ const HabitsPage = () => {
           </div>
         </div>
 
-        {/* Filter Buttons */}
         <div className="flex items-center gap-3 mb-6">
           <Filter className="w-5 h-5 text-muted-foreground" />
           <div className="flex gap-2">
@@ -328,7 +317,6 @@ const HabitsPage = () => {
           </div>
         </div>
 
-        {/* Habits List */}
         <div className="space-y-3">
           {filteredHabits.map((habit) => (
             <HabitCard
@@ -349,7 +337,6 @@ const HabitsPage = () => {
           )}
         </div>
 
-        {/* Add Habit Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">

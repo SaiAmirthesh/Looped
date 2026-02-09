@@ -3,12 +3,11 @@ export default function QuestCard({
   description = "Complete this quest to earn XP.",
   xpReward = 50,
   completed = false,
-  difficulty = "easy", // easy | medium | hard
+  difficulty = "easy", 
   progress = 0,
   onToggle,
   onDelete
 }) {
-  // Difficulty color mapping: easy = green, medium = orange, hard = red
   const difficultyStyles = {
     easy: {
       text: "text-green-500",
@@ -39,7 +38,6 @@ export default function QuestCard({
         backgroundColor: completed ? "var(--muted)" : "var(--card)",
       }}
     >
-      {/* Header */}
       <div className="flex justify-between items-start mb-2">
         <h3 className={`text-base font-semibold ${completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
           {title}
@@ -50,12 +48,10 @@ export default function QuestCard({
         </span>
       </div>
 
-      {/* Description */}
       <p className="text-sm text-muted-foreground mb-3">
         {description}
       </p>
 
-      {/* Footer */}
       <div className="flex justify-between items-center text-sm">
         <span className={`mt-4 px-2 py-1 rounded-md ${style.bg} ${style.text} ${style.border} border font-medium capitalize`}>
           {difficulty}

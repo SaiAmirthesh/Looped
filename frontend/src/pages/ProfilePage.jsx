@@ -72,7 +72,6 @@ const ProfilePage = () => {
         const skillsData = getData(skillsKey, defaultSkills);
         setSkills(skillsData);
 
-        // Check achievements
         const habitsKey = generateKey(userId, 'habits');
         const habits = getData(habitsKey, []);
         const questsKey = generateKey(userId, 'quests');
@@ -115,9 +114,7 @@ const ProfilePage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column - User Info */}
                     <div className="lg:col-span-1 space-y-6">
-                        {/* User Card */}
                         <div className="bg-card border border-border rounded-lg p-6">
                             <div className="flex flex-col items-center text-center">
                                 <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mb-4">
@@ -137,7 +134,6 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Quick Stats */}
                         <div className="bg-card border border-border rounded-lg p-6">
                             <h3 className="font-semibold text-foreground mb-4">Quick Stats</h3>
                             <div className="space-y-3">
@@ -154,14 +150,12 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Skill Radar Chart */}
                         <div className="w-full">
                             <SkillRadarChart skills={skills} />
                         </div>
 
                     </div>
 
-                    {/* Right Column - Progress & Achievements */}
                     <div className="lg:col-span-2 space-y-6">
                         {/* XP Progress */}
                         <div className="bg-card border border-border rounded-lg p-6">
@@ -173,7 +167,6 @@ const ProfilePage = () => {
                             />
                         </div>
 
-                        {/* Stats Overview */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-card border border-border rounded-lg p-6">
                                 <div className="flex items-center gap-3 mb-2">
@@ -209,7 +202,6 @@ const ProfilePage = () => {
                             </div>
                         </div>
 
-                        {/* Achievements */}
                         <div className="bg-card border border-border rounded-lg p-6">
                             <h3 className="font-semibold text-foreground mb-4">Achievements</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -12,10 +12,9 @@ const FocusPage = () => {
     const [minutes, setMinutes] = useState(25);
     const [seconds, setSeconds] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
-    const [sessionType, setSessionType] = useState('focus'); // focus, short-break, long-break
+    const [sessionType, setSessionType] = useState('focus'); 
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
 
-    // Load user and session data from localStorage
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
@@ -27,7 +26,6 @@ const FocusPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
-            // Load sessions for today
             const today = new Date().toISOString().split('T')[0];
             const sessionKey = generateKey(userId, `focusSessions:${today}`);
             const todaySessions = getData(sessionKey, []);
@@ -53,12 +51,10 @@ const FocusPage = () => {
             interval = setInterval(() => {
                 if (seconds === 0) {
                     if (minutes === 0) {
-                        // Timer completed
                         setIsRunning(false);
                         if (sessionType === 'focus') {
                             setSessionsCompleted(prev => prev + 1);
                             
-                            // Save focus session and award XP
                             if (user) {
                                 const today = new Date().toISOString().split('T')[0];
                                 const sessionKey = generateKey(user.id, `focusSessions:${today}`);
@@ -74,11 +70,9 @@ const FocusPage = () => {
                                 todaySessions.push(newSession);
                                 setData(sessionKey, todaySessions);
                                 
-                                // Award XP: 25 minutes = 15 XP
                                 addXP(15);
                             }
                         } else {
-                            // Save break session
                             if (user) {
                                 const today = new Date().toISOString().split('T')[0];
                                 const sessionKey = generateKey(user.id, `focusSessions:${today}`);
@@ -96,7 +90,6 @@ const FocusPage = () => {
                                 setData(sessionKey, todaySessions);
                             }
                         }
-                        // Play notification sound (optional)
                         playNotification();
                     } else {
                         setMinutes(minutes - 1);
@@ -111,7 +104,6 @@ const FocusPage = () => {
     }, [isRunning, minutes, seconds, sessionType, user]);
 
     const playNotification = () => {
-        // Simple notification - could be enhanced with actual sound
         if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Looped', {
                 body: `${sessionType === 'focus' ? 'Focus session' : 'Break'} completed!`,
@@ -185,7 +177,6 @@ const FocusPage = () => {
             <Navigation />
 
             <main className="flex-1 ml-10 p-8">
-                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-foreground mb-2 text-center">Focus Session</h1>
                     <p className="text-muted-foreground text-center">
@@ -228,7 +219,6 @@ const FocusPage = () => {
                         </button>
                     </div>
 
-                    {/* Timer Display */}
                     {isRunning ? (
                         <ElectricBorder
                             color={sessionType === 'focus' ? 'oklch(0.5054 0.1905 27.5181)' : 'oklch(0.4732 0.1247 46.2007)'}
@@ -270,7 +260,6 @@ const FocusPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Control Buttons */}
                                 <div className="flex gap-4 justify-center">
                                     <button
                                         onClick={handlePause}
@@ -323,7 +312,6 @@ const FocusPage = () => {
                                 </div>
                             </div>
 
-                            {/* Control Buttons */}
                             <div className="flex gap-4 justify-center">
                                 <button
                                     onClick={handleStart}
@@ -343,7 +331,6 @@ const FocusPage = () => {
                         </div>
                     )}
 
-                    {/* Session Stats */}
                     <div className="grid grid-cols-2 gap-6">
                         <div className="bg-card border border-border rounded-lg p-6 text-center">
                             <div className="text-muted-foreground text-sm mb-2">Sessions Today</div>

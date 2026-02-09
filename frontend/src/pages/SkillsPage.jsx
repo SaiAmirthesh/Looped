@@ -24,10 +24,8 @@ const SkillsPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
-            // Run migrations to fix old data
             runMigrations(userId);
 
-            // Load skills for this user
             const skillsKey = generateKey(userId, 'skills');
             const defaultSkills = [
                 { name: 'Focus', currentXP: 0, level: 1 },
@@ -39,7 +37,6 @@ const SkillsPage = () => {
             ];
             const skillsData = getData(skillsKey, defaultSkills);
 
-            // Filter out null/undefined skills and add calculated properties for display
             const enrichedSkills = skillsData
                 .filter(skill => skill && skill.name)
                 .map(skill => {
@@ -114,7 +111,6 @@ const SkillsPage = () => {
             <Navigation />
 
             <main className="flex-1 ml-10 p-8">
-                {/* Header */}
                 <div className="mb-8 ">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-foreground mb-2">Skills</h1>
@@ -124,7 +120,6 @@ const SkillsPage = () => {
                     </p>
                 </div>
 
-                {/* Overview Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="text-muted-foreground text-sm mb-2">Total Level</div>
@@ -149,7 +144,6 @@ const SkillsPage = () => {
                     </div>
                 </div>
 
-                {/* Skills Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     {skills.map(skill => (
                         <div key={skill.name} className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-shadow">
@@ -167,7 +161,6 @@ const SkillsPage = () => {
 
                             <p className="text-sm text-muted-foreground mb-4">{skill.description}</p>
 
-                            {/* Progress Bar */}
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Progress</span>
@@ -187,7 +180,6 @@ const SkillsPage = () => {
                     ))}
                 </div>
 
-                {/* Info Card */}
                 <div className="bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-foreground mb-2">How Skills Work</h3>
                     <p className="text-muted-foreground mb-4">

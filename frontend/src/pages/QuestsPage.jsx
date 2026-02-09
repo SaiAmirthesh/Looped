@@ -21,7 +21,6 @@ const QuestsPage = () => {
         skill: 'Focus'
     });
 
-    // Load user and quests from localStorage
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
@@ -33,11 +32,9 @@ const QuestsPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
-            // Load quests for this user
             const storageKey = generateKey(userId, 'quests');
             const savedQuests = getData(storageKey, []);
 
-            // Initialize with empty array if none exist
             setQuests(savedQuests);
         };
 
@@ -54,7 +51,6 @@ const QuestsPage = () => {
         return () => subscription?.unsubscribe();
     }, [navigate]);
 
-    // Save quests to localStorage whenever they change
     useEffect(() => {
         if (user) {
             const storageKey = generateKey(user.id, 'quests');
@@ -68,7 +64,6 @@ const QuestsPage = () => {
         const xpKey = generateKey(user.id, 'xp');
         const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
 
-        // Always calculate nextLevelXP based on current level to ensure it's correct
         const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
 
         const newCurrentXP = currentXP.currentXP + amount;
@@ -108,7 +103,6 @@ const QuestsPage = () => {
         ];
         let skills = getData(skillsKey, defaultSkills);
 
-        // Add XP to the specified skill with leveling formula
         skills = skills.map(skill => {
             if (skill.name === skillName) {
                 const newXP = skill.currentXP + amount;
@@ -179,7 +173,6 @@ const QuestsPage = () => {
             <Navigation />
 
             <main className="flex-1 ml-10 p-8">
-                {/* Header */}
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-foreground">Quests</h1>
@@ -196,7 +189,6 @@ const QuestsPage = () => {
                     </p>
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="flex items-center gap-2 mb-2">
@@ -221,7 +213,6 @@ const QuestsPage = () => {
                     </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex gap-2 mb-6">
                     <button
                         onClick={() => setActiveTab('active')}
@@ -243,7 +234,6 @@ const QuestsPage = () => {
                     </button>
                 </div>
 
-                {/* Quest Lists */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {activeTab === 'active'
                         ? activeQuests.map(quest => (
@@ -270,7 +260,6 @@ const QuestsPage = () => {
                     }
                 </div>
 
-                {/* Add Quest Modal */}
                 {showModal && (
                     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
                         <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">

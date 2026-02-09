@@ -7,7 +7,6 @@ export default function XPBar({
 
   return (
     <div className="w-full">
-      {/* Level + XP Text */}
       <div className="flex justify-between items-center mb-2 text-sm text-muted-foreground">
         <span className="font-medium">Level {level}</span>
         <span>
@@ -15,7 +14,6 @@ export default function XPBar({
         </span>
       </div>
 
-      {/* Progress Bar */}
       <div className="w-full h-3 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border)" }}>
         <div
           className="h-full rounded-full transition-all duration-500 ease-out"

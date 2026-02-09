@@ -17,13 +17,11 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -44,7 +42,6 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
         <Route
           path="/login"
@@ -55,7 +52,6 @@ function App() {
           element={session ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
         />
 
-        {/* Protected routes */}
         <Route
           path="/dashboard"
           element={session ? <Dashboard /> : <Navigate to="/login" replace />}
@@ -85,7 +81,6 @@ function App() {
           element={session ? <ProfilePage /> : <Navigate to="/login" replace />}
         />
 
-        {/* Redirect unknown routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

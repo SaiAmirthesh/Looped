@@ -9,9 +9,9 @@ const CalendarPage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [dailyStatus, setDailyStatus] = useState({}); // Store completion status per day
+    const [dailyStatus, setDailyStatus] = useState({}); 
     const [dailyXP, setDailyXP] = useState({});
-    const [dailyStreak, setDailyStreak] = useState({}); // Store streak per day
+    const [dailyStreak, setDailyStreak] = useState({}); 
     const [currentStreak, setCurrentStreak] = useState(0);
 
     useEffect(() => {
@@ -25,12 +25,10 @@ const CalendarPage = () => {
             const userId = session.user.id;
             setUser(session.user);
 
-            // Calculate daily status and XP for the current month
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-            // Get account creation date
             const accountCreatedAt = session.user.created_at ? new Date(session.user.created_at) : new Date();
 
             const habitsKey = generateKey(userId, 'habits');
@@ -44,47 +42,41 @@ const CalendarPage = () => {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const currentDayDate = new Date(year, month, day);
 
-                // Check if this day is before account creation
                 const isBeforeAccount = currentDayDate < accountCreatedAt;
 
-                // Check if this day is in the future
                 const isFuture = currentDayDate > new Date();
 
-                // Count habits completed on this day
                 const habitsCompletedCount = habits.filter(h => h.lastCompleted === dateStr).length;
                 const totalHabits = habits.length;
 
-                // Determine completion status
-                let status = 'unattended'; // default for days before account or future days
+                let status = 'unattended'; 
 
                 if (!isBeforeAccount && !isFuture) {
                     if (totalHabits > 0) {
                         const completionPercent = (habitsCompletedCount / totalHabits) * 100;
                         if (completionPercent === 100) {
-                            status = 'full'; // green - full completion
+                            status = 'full'; 
                         } else if (completionPercent > 0) {
-                            status = 'partial'; // orange - partial completion
+                            status = 'partial'; 
                         } else {
-                            status = 'no'; // red - no completion
+                            status = 'no'; 
                         }
                     } else {
-                        status = 'no'; // red - no habits exist yet
+                        status = 'no'; 
                     }
                 }
 
-                const habitXP = habitsCompletedCount * 10; // 10 XP per habit
+                const habitXP = habitsCompletedCount * 10; 
 
-                // Check focus sessions for that day
                 const focusKey = generateKey(userId, `focusSessions:${dateStr}`);
                 const focusSessions = getData(focusKey, []);
-                const focusXP = focusSessions.filter(s => s.type === 'focus').length * 15; // 15 XP per focus session
+                const focusXP = focusSessions.filter(s => s.type === 'focus').length * 15; 
 
                 const totalDayXP = habitXP + focusXP;
                 if (totalDayXP > 0) {
                     xpMap[day] = totalDayXP;
                 }
 
-                // Store streak for this day if any habit was completed
                 if (habitsCompletedCount > 0) {
                     const dayStreaks = habits
                         .filter(h => h.lastCompleted === dateStr)
@@ -101,7 +93,6 @@ const CalendarPage = () => {
             setDailyXP(xpMap);
             setDailyStreak(streakMap);
 
-            // Calculate current streak
             const streaks = habits.map(h => h.streak);
             const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
             setCurrentStreak(maxStreak);
@@ -158,7 +149,6 @@ const CalendarPage = () => {
             <Navigation />
 
             <main className="flex-1 m-10 p-8">
-                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-foreground mb-2">Calendar</h1>
                     <p className="text-muted-foreground">
@@ -166,7 +156,6 @@ const CalendarPage = () => {
                     </p>
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-card border border-border rounded-lg p-6">
                         <div className="text-muted-foreground text-sm mb-2">Total XP This Month</div>
@@ -192,9 +181,7 @@ const CalendarPage = () => {
                     </div>
                 </div>
 
-                {/* Calendar */}
                 <div className="bg-card border border-border rounded-xl p-6 shadow-lg">
-                    {/* Month Navigation */}
                     <div className="flex items-center justify-between mb-6">
                         <button
                             onClick={previousMonth}
@@ -215,21 +202,17 @@ const CalendarPage = () => {
                         </button>
                     </div>
 
-                    {/* Calendar Grid */}
                     <div className="grid grid-cols-7 gap-2">
-                        {/* Day headers */}
                         {dayNames.map(day => (
                             <div key={day} className="text-center font-semibold text-muted-foreground py-2 text-sm">
                                 {day}
                             </div>
                         ))}
 
-                        {/* Empty cells for days before month starts */}
                         {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                             <div key={`empty-${index}`} className="aspect-square" />
                         ))}
 
-                        {/* Calendar days */}
                         {Array.from({ length: daysInMonth }).map((_, index) => {
                             const day = index + 1;
                             const status = dailyStatus[day] || 'unattended';
@@ -244,16 +227,12 @@ const CalendarPage = () => {
                             if (isToday) {
                                 dayClassName += 'border-primary bg-primary/10 font-bold';
                             } else if (status === 'unattended') {
-                                // Days before account creation or in the future
                                 dayClassName += 'border-border bg-muted/30 opacity-40';
                             } else if (status === 'full') {
-                                // All habits completed on this day
                                 dayClassName += 'border-green-500/60 bg-green-500/50 hover:bg-green-500/60';
                             } else if (status === 'partial') {
-                                // Some habits completed
                                 dayClassName += 'border-orange-500/60 bg-orange-500/50 hover:bg-orange-500/60';
                             } else {
-                                // No habits completed
                                 dayClassName += 'border-red-500/60 bg-red-500/50 hover:bg-red-500/60';
                             }
 
@@ -263,7 +242,6 @@ const CalendarPage = () => {
                                     className={dayClassName}
                                     title={`${status === 'full' ? 'Full completion' : status === 'partial' ? 'Partial completion' : status === 'unattended' ? 'Unattended' : 'No habits completed'}`}
                                 >
-                                    {/* Flame icon with streak in top-right corner */}
                                     {streak && (
                                         <span className="absolute top-0 right-0 text-xs flex items-center gap-0.5">
                                             <Flame className="w-3 h-3 text-orange-500" />{streak}
@@ -282,7 +260,6 @@ const CalendarPage = () => {
                         })}
                     </div>
 
-                    {/* Legend */}
                     <div className="flex items-center gap-6 mt-6 pt-6 border-t border-border text-sm">
                         <div className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-primary bg-primary/10 rounded"></div>
@@ -303,7 +280,6 @@ const CalendarPage = () => {
                     </div>
                 </div>
 
-                {/* Monthly Summary */}
                 <div className="mt-8 bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-foreground mb-4">Monthly Summary</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

@@ -17,13 +17,11 @@ const RegisterPage = () => {
         setError(null);
         setSuccess(false);
 
-        // Validate passwords match
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;
         }
 
-        // Validate password length
         if (password.length < 6) {
             setError('Password must be at least 6 characters');
             return;
@@ -39,10 +37,8 @@ const RegisterPage = () => {
 
             if (error) throw error;
 
-            // Successfully registered
             setSuccess(true);
 
-            // Redirect to login after 2 seconds
             setTimeout(() => {
                 navigate('/login');
             }, 2000);
@@ -55,7 +51,6 @@ const RegisterPage = () => {
 
     return (
         <div className="min-h-screen flex bg-background">
-            {/* Left Side - Form */}
             <div className="flex-1 flex items-center justify-center px-8 py-12">
                 <div className="w-full max-w-md">
                     <div className="backdrop-blur-sm bg-card/30 border border-border/50 rounded-xl p-8 shadow-2xl">
@@ -143,7 +138,6 @@ const RegisterPage = () => {
                 </div>
             </div>
 
-            {/* Right Side - Background Image with Overlay */}
             <div
                 className="hidden lg:flex flex-1 items-center justify-center border-l border-border relative overflow-hidden"
                 style={{
@@ -153,10 +147,8 @@ const RegisterPage = () => {
                     backgroundRepeat: 'no-repeat'
                 }}
             >
-                {/* Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-background/95 via-background/80 to-chart-2/20"></div>
 
-                {/* Content */}
                 <div className="relative z-10 max-w-lg p-12 text-center">
                     <h2 className="text-3xl font-bold text-foreground mb-4 drop-shadow-lg">
                         Join the Productivity Revolution

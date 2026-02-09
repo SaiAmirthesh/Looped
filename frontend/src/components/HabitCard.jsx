@@ -18,7 +18,6 @@ export default function HabitCard({
         borderColor: "var(--border)",
       }}
     >
-      {/* Left: Checkbox + Title */}
       <div className="flex items-center gap-3 flex-1">
         <button
           onClick={onToggle}
@@ -49,7 +48,6 @@ export default function HabitCard({
         </div>
       </div>
 
-      {/* Right: Streak + Delete */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5 text-sm">
           <Flame className="w-5 h-5 text-orange-500" />

@@ -13,7 +13,6 @@ export default function Modal({
         bg-black/40 backdrop-blur-sm
       "
     >
-      {/* Modal Card */}
       <div
         className="
           w-full max-w-md mx-4
@@ -24,7 +23,6 @@ export default function Modal({
           shadow-lg
         "
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-(--color-border)">
           <h2 className="text-sm font-semibold">
             {title}
@@ -43,7 +41,6 @@ export default function Modal({
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-4">
           {children}
         </div>

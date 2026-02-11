@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import ElectricBorder from '../components/ElectricBorder';
 import { Play, Pause, RotateCcw, Coffee, Brain } from 'lucide-react';
-import { getData, setData, generateKey } from '../lib/storage';
+import { createFocusSession, completeFocusSession, getFocusSessions } from '../lib/supabaseAPI';
+import { usePageVisibilityRefetch } from '../lib/usePageVisibilityRefetch';
 
 const FocusPage = () => {
     const navigate = useNavigate();
@@ -12,8 +13,24 @@ const FocusPage = () => {
     const [minutes, setMinutes] = useState(25);
     const [seconds, setSeconds] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
-    const [sessionType, setSessionType] = useState('focus'); 
+    const [sessionType, setSessionType] = useState('focus');
+    const [currentSessionId, setCurrentSessionId] = useState(null);
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
+
+    const loadTodaySessions = useCallback(async () => {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+            const sessions = await getFocusSessions(today, tomorrowStr);
+            const focusSessions = sessions.filter(s => s.session_type === 'focus' && s.completed);
+            setSessionsCompleted(focusSessions.length);
+        } catch (error) {
+            console.error('Error loading sessions:', error);
+        }
+    }, []);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -23,13 +40,8 @@ const FocusPage = () => {
                 return;
             }
 
-            const userId = session.user.id;
             setUser(session.user);
-
-            const today = new Date().toISOString().split('T')[0];
-            const sessionKey = generateKey(userId, `focusSessions:${today}`);
-            const todaySessions = getData(sessionKey, []);
-            setSessionsCompleted(todaySessions.filter(s => s.type === 'focus').length);
+            await loadTodaySessions();
         };
 
         checkUser();
@@ -39,55 +51,35 @@ const FocusPage = () => {
                 navigate('/login');
             } else {
                 setUser(session.user);
+                loadTodaySessions();
             }
         });
 
         return () => subscription?.unsubscribe();
-    }, [navigate]);
+    }, [navigate, loadTodaySessions]);
+
+    usePageVisibilityRefetch(loadTodaySessions);
 
     useEffect(() => {
         let interval = null;
         if (isRunning) {
-            interval = setInterval(() => {
+            interval = setInterval(async () => {
                 if (seconds === 0) {
                     if (minutes === 0) {
                         setIsRunning(false);
                         if (sessionType === 'focus') {
                             setSessionsCompleted(prev => prev + 1);
-                            
-                            if (user) {
-                                const today = new Date().toISOString().split('T')[0];
-                                const sessionKey = generateKey(user.id, `focusSessions:${today}`);
-                                const todaySessions = getData(sessionKey, []);
-                                
-                                const newSession = {
-                                    id: crypto.randomUUID(),
-                                    type: 'focus',
-                                    duration: 25,
-                                    completedAt: new Date().toISOString()
-                                };
-                                
-                                todaySessions.push(newSession);
-                                setData(sessionKey, todaySessions);
-                                
-                                addXP(15);
+
+                            if (user && currentSessionId) {
+                                // Complete the focus session in Supabase
+                                await completeFocusSession(currentSessionId, 15);
+                                setCurrentSessionId(null);
                             }
                         } else {
-                            if (user) {
-                                const today = new Date().toISOString().split('T')[0];
-                                const sessionKey = generateKey(user.id, `focusSessions:${today}`);
-                                const todaySessions = getData(sessionKey, []);
-                                
-                                const breakDuration = sessionType === 'short-break' ? 5 : 15;
-                                const newSession = {
-                                    id: crypto.randomUUID(),
-                                    type: sessionType,
-                                    duration: breakDuration,
-                                    completedAt: new Date().toISOString()
-                                };
-                                
-                                todaySessions.push(newSession);
-                                setData(sessionKey, todaySessions);
+                            // Break sessions don't award XP, just complete them
+                            if (user && currentSessionId) {
+                                await completeFocusSession(currentSessionId, 0);
+                                setCurrentSessionId(null);
                             }
                         }
                         playNotification();
@@ -101,7 +93,7 @@ const FocusPage = () => {
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isRunning, minutes, seconds, sessionType, user]);
+    }, [isRunning, minutes, seconds, sessionType, user, currentSessionId]);
 
     const playNotification = () => {
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -111,34 +103,22 @@ const FocusPage = () => {
         }
     };
 
-    const addXP = (amount) => {
-        if (!user) return;
-        
-        const xpKey = generateKey(user.id, 'xp');
-        const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        
-        const newCurrentXP = currentXP.currentXP + amount;
-        const xpForLevelUp = currentXP.nextLevelXP;
-        
-        let newLevel = currentXP.level;
-        let finalCurrentXP = newCurrentXP;
-        
-        if (newCurrentXP >= xpForLevelUp) {
-            newLevel += 1;
-            finalCurrentXP = newCurrentXP - xpForLevelUp;
+    const handleStart = async () => {
+        if (user) {
+            try {
+                // Create a new focus session in Supabase
+                const duration = sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15;
+                const session = await createFocusSession({
+                    durationMinutes: duration,
+                    sessionType: sessionType
+                });
+                setCurrentSessionId(session.id);
+                setIsRunning(true);
+            } catch (error) {
+                console.error('Error starting session:', error);
+            }
         }
-        
-        const updatedXP = {
-            totalXP: currentXP.totalXP + amount,
-            level: newLevel,
-            currentXP: finalCurrentXP,
-            nextLevelXP: xpForLevelUp
-        };
-        
-        setData(xpKey, updatedXP);
     };
-
-    const handleStart = () => setIsRunning(true);
     const handlePause = () => setIsRunning(false);
 
     const handleReset = () => {

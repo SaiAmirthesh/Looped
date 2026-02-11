@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import StatCard from '../components/StatCard';
 import { Target, Brain, Heart, BookOpen, Palette, Users, Sword, Zap } from 'lucide-react';
-import { getData, generateKey } from '../lib/storage';
-import { runMigrations } from '../lib/migrations';
+import { getSkillProgress, subscribeToSkills } from '../lib/supabaseAPI';
+import { usePageVisibilityRefetch } from '../lib/usePageVisibilityRefetch';
+import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 
 const SkillsPage = () => {
     const navigate = useNavigate();
@@ -13,7 +14,48 @@ const SkillsPage = () => {
     const [skills, setSkills] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const loadSkills = useCallback(async () => {
+        try {
+            setLoading(true);
+            const skillsData = await getSkillProgress();
+
+            const iconMap = {
+                'Focus': Target,
+                'Learning': Brain,
+                'Health': Heart,
+                'Creativity': Palette,
+                'Confidence': Zap,
+                'Social': Users
+            };
+
+            const descriptionMap = {
+                'Focus': 'Complete focus sessions and stay concentrated',
+                'Learning': 'Read books and expand your knowledge',
+                'Health': 'Exercise and maintain a healthy lifestyle',
+                'Creativity': 'Express yourself through creative activities',
+                'Confidence': 'Build self-assurance and overcome challenges',
+                'Social': 'Connect with others and build relationships'
+            };
+
+            const enrichedSkills = skillsData.map(skill => ({
+                ...skill,
+                icon: iconMap[skill.name],
+                description: descriptionMap[skill.name]
+            }));
+
+            setSkills(enrichedSkills);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error loading skills:', error);
+            setLoading(false);
+        }
+    }, []);
+
+    const debouncedRefetch = useDebouncedCallback(loadSkills, 300);
+
     useEffect(() => {
+        let skillsSubscription;
+
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -21,38 +63,9 @@ const SkillsPage = () => {
                 return;
             }
 
-            const userId = session.user.id;
             setUser(session.user);
-
-            runMigrations(userId);
-
-            const skillsKey = generateKey(userId, 'skills');
-            const defaultSkills = [
-                { name: 'Focus', currentXP: 0, level: 1 },
-                { name: 'Learning', currentXP: 0, level: 1 },
-                { name: 'Health', currentXP: 0, level: 1 },
-                { name: 'Creativity', currentXP: 0, level: 1 },
-                { name: 'Confidence', currentXP: 0, level: 1 },
-                { name: 'Social', currentXP: 0, level: 1 }
-            ];
-            const skillsData = getData(skillsKey, defaultSkills);
-
-            const enrichedSkills = skillsData
-                .filter(skill => skill && skill.name)
-                .map(skill => {
-                    const maxXP = Math.floor(100 * Math.pow(skill.level, 1.5));
-                    const progress = maxXP > 0 ? Math.floor((skill.currentXP / maxXP) * 100) : 0;
-                    return {
-                        ...skill,
-                        maxXP,
-                        progress,
-                        icon: getSkillIcon(skill.name),
-                        description: getSkillDescription(skill.name)
-                    };
-                });
-
-            setSkills(enrichedSkills);
-            setLoading(false);
+            await loadSkills();
+            skillsSubscription = await subscribeToSkills(debouncedRefetch);
         };
 
         checkUser();
@@ -62,35 +75,17 @@ const SkillsPage = () => {
                 navigate('/login');
             } else {
                 setUser(session.user);
+                loadSkills();
             }
         });
 
-        return () => subscription?.unsubscribe();
-    }, [navigate]);
-
-    const getSkillIcon = (skillName) => {
-        const iconMap = {
-            'Focus': <Target className="w-6 h-6 text-primary" />,
-            'Learning': <BookOpen className="w-6 h-6 text-chart-4" />,
-            'Health': <Heart className="w-6 h-6 text-chart-1" />,
-            'Creativity': <Palette className="w-6 h-6 text-chart-3" />,
-            'Confidence': <Zap className="w-6 h-6 text-yellow-500" />,
-            'Social': <Users className="w-6 h-6 text-chart-5" />
+        return () => {
+            subscription?.unsubscribe();
+            skillsSubscription?.unsubscribe();
         };
-        return iconMap[skillName] || <Target className="w-6 h-6 text-primary" />;
-    };
+    }, [navigate, loadSkills, debouncedRefetch]);
 
-    const getSkillDescription = (skillName) => {
-        const descMap = {
-            'Focus': 'Your ability to concentrate and complete tasks without distraction',
-            'Learning': 'Knowledge acquisition and continuous self-improvement',
-            'Health': 'Physical and mental well-being through healthy habits',
-            'Creativity': 'Innovative thinking and creative problem-solving',
-            'Confidence': 'Self-assurance and belief in your abilities',
-            'Social': 'Building and maintaining meaningful relationships'
-        };
-        return descMap[skillName] || '';
-    };
+    usePageVisibilityRefetch(debouncedRefetch);
 
     if (loading) {
         return (
@@ -150,7 +145,7 @@ const SkillsPage = () => {
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                                        {skill.icon}
+                                        {React.createElement(skill.icon, { className: "w-6 h-6 text-primary" })}
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-foreground">{skill.name}</h3>

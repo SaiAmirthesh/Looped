@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import { User, Mail, Trophy, Target, Flame, LogOut } from 'lucide-react';
 import SkillRadarChart from '../components/SkillRadarChart';
-import { getData, generateKey } from '../lib/storage';
+import { getProfileDataBatch, subscribeToProfile, subscribeToSkills } from '../lib/supabaseAPI';
+import { usePageVisibilityRefetch } from '../lib/usePageVisibilityRefetch';
+import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -17,6 +19,7 @@ const ProfilePage = () => {
         totalXP: 0
     });
     const [skills, setSkills] = useState([]);
+    const [habits, setHabits] = useState([]);
     const [achievements, setAchievements] = useState([
         { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: false },
         { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: false },
@@ -26,17 +29,48 @@ const ProfilePage = () => {
         { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
     ]);
 
+    const loadProfileData = useCallback(async () => {
+        try {
+            const { profile, skills: skillsData, habits: habitsData, quests } = await getProfileDataBatch();
+
+            setPlayerStats({
+                level: profile.level,
+                currentXP: profile.current_xp,
+                maxXP: profile.next_level_xp,
+                totalXP: profile.total_xp
+            });
+            setSkills(skillsData);
+            setHabits(habitsData);
+
+            setAchievements(prevAchievements => {
+                const newAchievements = [...prevAchievements];
+                if (habitsData.length > 0) newAchievements[0].unlocked = true;
+                if (habitsData.some(h => h.streak >= 7)) newAchievements[1].unlocked = true;
+                if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true;
+                if (skillsData?.length > 0 && skillsData.some(s => s?.level >= 5)) newAchievements[3].unlocked = true;
+                if (habitsData.some(h => h.streak >= 30)) newAchievements[4].unlocked = true;
+                return newAchievements;
+            });
+        } catch (error) {
+            console.error('Error loading profile data:', error);
+        }
+    }, []);
+
+    const debouncedRefetch = useDebouncedCallback(loadProfileData, 300);
+
     useEffect(() => {
+        let profileSubscription, skillsSubscription;
+
         const getUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 navigate('/login');
                 return;
             }
-            if (session) {
-                setUser(session.user);
-                loadProfileData(session.user.id);
-            }
+            setUser(session.user);
+            await loadProfileData();
+            profileSubscription = await subscribeToProfile(debouncedRefetch);
+            skillsSubscription = await subscribeToSkills(debouncedRefetch);
         };
         getUser();
 
@@ -45,47 +79,19 @@ const ProfilePage = () => {
                 navigate('/login');
             } else {
                 setUser(session.user);
-                loadProfileData(session.user.id);
+                loadProfileData();
             }
         });
 
-        return () => subscription?.unsubscribe();
-    }, [navigate]);
+        return () => {
+            subscription?.unsubscribe();
+            profileSubscription?.unsubscribe();
+            skillsSubscription?.unsubscribe();
+        };
+    }, [navigate, loadProfileData, debouncedRefetch]);
 
-    const loadProfileData = (userId) => {
-        // Load XP data
-        const xpKey = generateKey(userId, 'xp');
-        const xpData = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        // normalize to `maxXP` for XPBar compatibility
-        setPlayerStats({ ...xpData, maxXP: xpData.nextLevelXP });
+    usePageVisibilityRefetch(debouncedRefetch);
 
-        // Load skills
-        const skillsKey = generateKey(userId, 'skills');
-        const defaultSkills = [
-            { name: 'Focus', currentXP: 0, level: 1 },
-            { name: 'Learning', currentXP: 0, level: 1 },
-            { name: 'Health', currentXP: 0, level: 1 },
-            { name: 'Creativity', currentXP: 0, level: 1 },
-            { name: 'Confidence', currentXP: 0, level: 1 },
-            { name: 'Social', currentXP: 0, level: 1 }
-        ];
-        const skillsData = getData(skillsKey, defaultSkills);
-        setSkills(skillsData);
-
-        const habitsKey = generateKey(userId, 'habits');
-        const habits = getData(habitsKey, []);
-        const questsKey = generateKey(userId, 'quests');
-        const quests = getData(questsKey, []);
-
-        setAchievements(prevAchievements => {
-            const newAchievements = [...prevAchievements];
-            if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
-            if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
-            if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
-            if (skillsData && skillsData.length > 0 && skillsData.some(s => s && s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
-            return newAchievements;
-        });
-    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -181,11 +187,9 @@ const ProfilePage = () => {
                                     <Target className="w-5 h-5 text-chart-2" />
                                     <span className="text-muted-foreground text-sm">Habits Completed</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
-                                    const habitsKey = generateKey(user.id, 'habits');
-                                    const habits = getData(habitsKey, []);
-                                    return habits.filter(h => h.completedToday).length;
-                                })() : 0}</div>
+                                <div className="text-3xl font-bold text-foreground">
+                                    {habits.filter(h => h.completedToday).length}
+                                </div>
                             </div>
 
                             <div className="bg-card border border-border rounded-lg p-6">
@@ -193,12 +197,9 @@ const ProfilePage = () => {
                                     <Flame className="w-5 h-5 text-chart-1" />
                                     <span className="text-muted-foreground text-sm">Longest Streak</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
-                                    const habitsKey = generateKey(user.id, 'habits');
-                                    const habits = getData(habitsKey, []);
-                                    const streaks = habits.map(h => h.streak || 0);
-                                    return streaks.length > 0 ? Math.max(...streaks) : 0;
-                                })() : 0} days</div>
+                                <div className="text-3xl font-bold text-foreground">
+                                    {habits.length > 0 ? Math.max(...habits.map(h => h.longestStreak || h.streak || 0)) : 0} days
+                                </div>
                             </div>
                         </div>
 

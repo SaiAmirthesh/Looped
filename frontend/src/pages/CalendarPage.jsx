@@ -1,18 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import { ChevronLeft, ChevronRight, TrendingUp, Flame } from 'lucide-react';
-import { getData, generateKey } from '../lib/storage';
+import { getCalendarDataBatch } from '../lib/supabaseAPI';
+import { usePageVisibilityRefetch } from '../lib/usePageVisibilityRefetch';
 
 const CalendarPage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [dailyStatus, setDailyStatus] = useState({}); 
+    const [dailyStatus, setDailyStatus] = useState({});
     const [dailyXP, setDailyXP] = useState({});
-    const [dailyStreak, setDailyStreak] = useState({}); 
+    const [dailyStreak, setDailyStreak] = useState({});
     const [currentStreak, setCurrentStreak] = useState(0);
+
+    const loadCalendarData = useCallback(async () => {
+        try {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+            const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+            const { stats, completions, habits } = await getCalendarDataBatch(startDate, endDate);
+
+            const statusMap = {};
+            const xpMap = {};
+            const streakMap = {};
+
+            // Process each day
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const currentDayDate = new Date(year, month, day);
+                const isFuture = currentDayDate > new Date();
+
+                // Find stats for this day
+                const dayStat = stats.find(s => s.stat_date === dateStr);
+                const dayCompletions = completions.filter(c => c.completed_date === dateStr);
+
+                let status = 'unattended';
+
+                if (!isFuture) {
+                    if (dayStat) {
+                        if (dayStat.completion_percentage === 100) {
+                            status = 'full';
+                        } else if (dayStat.completion_percentage > 0) {
+                            status = 'partial';
+                        } else {
+                            status = 'no';
+                        }
+                    } else {
+                        status = 'no';
+                    }
+                }
+
+                statusMap[day] = status;
+
+                if (dayStat && dayStat.xp_earned > 0) {
+                    xpMap[day] = dayStat.xp_earned;
+                }
+
+                if (dayStat && dayStat.current_streak > 0) {
+                    streakMap[day] = dayStat.current_streak;
+                }
+            }
+
+            setDailyStatus(statusMap);
+            setDailyXP(xpMap);
+            setDailyStreak(streakMap);
+
+            // Calculate current streak from habits
+            const streaks = habits.map(h => h.streak);
+            const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
+            setCurrentStreak(maxStreak);
+        } catch (error) {
+            console.error('Error loading calendar data:', error);
+        }
+    }, [currentDate]);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -22,80 +88,8 @@ const CalendarPage = () => {
                 return;
             }
 
-            const userId = session.user.id;
             setUser(session.user);
-
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            const accountCreatedAt = session.user.created_at ? new Date(session.user.created_at) : new Date();
-
-            const habitsKey = generateKey(userId, 'habits');
-            const habits = getData(habitsKey, []);
-
-            const statusMap = {};
-            const xpMap = {};
-            const streakMap = {};
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const currentDayDate = new Date(year, month, day);
-
-                const isBeforeAccount = currentDayDate < accountCreatedAt;
-
-                const isFuture = currentDayDate > new Date();
-
-                const habitsCompletedCount = habits.filter(h => h.lastCompleted === dateStr).length;
-                const totalHabits = habits.length;
-
-                let status = 'unattended'; 
-
-                if (!isBeforeAccount && !isFuture) {
-                    if (totalHabits > 0) {
-                        const completionPercent = (habitsCompletedCount / totalHabits) * 100;
-                        if (completionPercent === 100) {
-                            status = 'full'; 
-                        } else if (completionPercent > 0) {
-                            status = 'partial'; 
-                        } else {
-                            status = 'no'; 
-                        }
-                    } else {
-                        status = 'no'; 
-                    }
-                }
-
-                const habitXP = habitsCompletedCount * 10; 
-
-                const focusKey = generateKey(userId, `focusSessions:${dateStr}`);
-                const focusSessions = getData(focusKey, []);
-                const focusXP = focusSessions.filter(s => s.type === 'focus').length * 15; 
-
-                const totalDayXP = habitXP + focusXP;
-                if (totalDayXP > 0) {
-                    xpMap[day] = totalDayXP;
-                }
-
-                if (habitsCompletedCount > 0) {
-                    const dayStreaks = habits
-                        .filter(h => h.lastCompleted === dateStr)
-                        .map(h => h.streak);
-                    if (dayStreaks.length > 0) {
-                        streakMap[day] = Math.max(...dayStreaks);
-                    }
-                }
-
-                statusMap[day] = status;
-            }
-
-            setDailyStatus(statusMap);
-            setDailyXP(xpMap);
-            setDailyStreak(streakMap);
-
-            const streaks = habits.map(h => h.streak);
-            const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
-            setCurrentStreak(maxStreak);
+            await loadCalendarData();
         };
 
         checkUser();
@@ -105,11 +99,14 @@ const CalendarPage = () => {
                 navigate('/login');
             } else {
                 setUser(session.user);
+                loadCalendarData();
             }
         });
 
         return () => subscription?.unsubscribe();
-    }, [navigate, currentDate]);
+    }, [currentDate, navigate, loadCalendarData]);
+
+    usePageVisibilityRefetch(loadCalendarData);
 
     const getDaysInMonth = (date) => {
         const year = date.getFullYear();

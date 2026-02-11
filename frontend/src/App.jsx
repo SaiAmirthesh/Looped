@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { getUserProfile, createUserProfile } from './lib/supabaseAPI';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -17,15 +18,47 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Check for existing session and initialize user profile
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+
+      // Initialize user profile in database if logged in
+      if (session?.user) {
+        try {
+          // Try to get existing profile
+          await getUserProfile();
+        } catch (error) {
+          // Profile doesn't exist, create it
+          console.log('Creating user profile...');
+          try {
+            await createUserProfile(session.user.id, session.user.email);
+            console.log('User profile created successfully');
+          } catch (createError) {
+            console.error('Error creating user profile:', createError);
+          }
+        }
+      }
     });
 
+    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
+
+      // Initialize profile on sign in
+      if (_event === 'SIGNED_IN' && session?.user) {
+        try {
+          await getUserProfile();
+        } catch (error) {
+          try {
+            await createUserProfile(session.user.id, session.user.email);
+          } catch (createError) {
+            console.error('Error creating user profile:', createError);
+          }
+        }
+      }
     });
 
     return () => subscription.unsubscribe();

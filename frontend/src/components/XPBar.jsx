@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion';
+
 export default function XPBar({
   currentXP = 40,
   maxXP = 100,
@@ -14,13 +16,16 @@ export default function XPBar({
         </span>
       </div>
 
-      <div className="w-full h-3 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-500 ease-out"
-          style={{
-            width: `${percentage}%`,
-            backgroundColor: "var(--accent)",
-          }}
+      <div
+        className="w-full h-3 rounded-full overflow-hidden"
+        style={{ backgroundColor: "var(--border)" }}
+      >
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: "var(--accent)" }}
         />
       </div>
     </div>

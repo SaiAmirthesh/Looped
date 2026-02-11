@@ -6,17 +6,72 @@
 import { supabase } from './supabaseClient';
 
 // ============================================
+// DATA CACHE (In-memory)
+// ============================================
+const dataCache = {
+    profile: null,
+    skills: null,
+    skillProgress: null,
+    habits: null,
+    quests: null,
+    focusSessions: null
+};
+
+export const getCachedProfile = () => dataCache.profile;
+export const getCachedSkills = () => dataCache.skills;
+export const getCachedSkillProgress = () => dataCache.skillProgress;
+export const getCachedHabits = () => dataCache.habits;
+export const getCachedQuests = () => dataCache.quests;
+
+// ============================================
+// SESSION MANAGEMENT
+// ============================================
+
+/**
+ * Get a valid session, refreshing if needed.
+ * Crucial for recovering from sleep/background tabs where auto-refresh might have paused.
+ */
+async function getValidSession() {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session) return null;
+
+    // Check if access token is expired (or close to it)
+    const expiresAt = session.expires_at; // timestamp in seconds
+    const now = Math.floor(Date.now() / 1000);
+
+    // Refresh if expired or expiring in < 60 seconds
+    if (expiresAt && (expiresAt < now + 60)) {
+        const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+            console.error('Session refresh failed', refreshError);
+            return null;
+        }
+        return newSession;
+    }
+
+    return session;
+}
+
+// ============================================
 // BATCH FETCH (reduces latency - 1 auth check + parallel queries)
 // ============================================
+
+/**
+ * Helper to resolve User ID (uses provided ID or fetches session)
+ */
+async function resolveUserId(providedId) {
+    if (providedId) return providedId;
+    const session = await getValidSession();
+    return session?.user?.id;
+}
 
 /**
  * Fetch all dashboard data in parallel (profile + habits + quests)
  * ~3x faster than sequential fetches
  */
-export async function getDashboardDataBatch() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('No authenticated user');
-    const userId = session.user.id;
+export async function getDashboardDataBatch(userIdArg) {
+    const userId = await resolveUserId(userIdArg);
+    if (!userId) throw new Error('No authenticated user');
 
     const [profileRes, habitsRes, questsRes] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', userId).single(),
@@ -38,16 +93,18 @@ export async function getDashboardDataBatch() {
         skill: q.skill, xpReward: q.xp_reward, completed: q.completed, completedAt: q.completed_at
     }));
 
+    dataCache.profile = profileRes.data;
+    dataCache.habits = habits;
+    dataCache.quests = quests;
     return { profile: profileRes.data, habits, quests };
 }
 
 /**
  * Fetch all profile page data in parallel
  */
-export async function getProfileDataBatch() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('No authenticated user');
-    const userId = session.user.id;
+export async function getProfileDataBatch(userIdArg) {
+    const userId = await resolveUserId(userIdArg);
+    if (!userId) throw new Error('No authenticated user');
 
     const [profileRes, skillsRes, habitsRes, questsRes] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', userId).single(),
@@ -72,20 +129,35 @@ export async function getProfileDataBatch() {
     }));
     const quests = questsRes.data || [];
 
+    dataCache.profile = profileRes.data;
+    dataCache.skills = skills;
+    dataCache.habits = habits; // Be mindful this has extra fields that might not match getUserHabits exactly but should be superset
+
     return { profile: profileRes.data, skills, habits, quests };
 }
 
 /**
  * Fetch calendar data in parallel
  */
-export async function getCalendarDataBatch(startDate, endDate) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error('No authenticated user');
-    const userId = session.user.id;
+export async function getCalendarDataBatch(userIdArg, startDate, endDate) {
+    // Handle argument shift if needed
+    let userIdResolved = userIdArg;
+    let start = startDate;
+    let end = endDate;
+
+    // Check if first arg looks like a date string (YYYY-MM-DD), implying userId was skipped
+    if (typeof userIdArg === 'string' && userIdArg.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        start = userIdArg;
+        end = startDate;
+        userIdResolved = null;
+    }
+
+    const userId = await resolveUserId(userIdResolved);
+    if (!userId) throw new Error('No authenticated user');
 
     const [statsRes, completionsRes, habitsRes] = await Promise.all([
-        supabase.from('daily_stats').select('*').eq('user_id', userId).gte('stat_date', startDate).lte('stat_date', endDate).order('stat_date', { ascending: true }),
-        supabase.from('habit_completions').select('*, habits(name, category)').eq('user_id', userId).gte('completed_date', startDate).lte('completed_date', endDate),
+        supabase.from('daily_stats').select('*').eq('user_id', userId).gte('stat_date', start).lte('stat_date', end).order('stat_date', { ascending: true }),
+        supabase.from('habit_completions').select('*, habits(name, category)').eq('user_id', userId).gte('completed_date', start).lte('completed_date', end),
         supabase.from('habits').select('*').eq('user_id', userId)
     ]);
 
@@ -104,18 +176,19 @@ export async function getCalendarDataBatch(startDate, endDate) {
  * Get user profile with XP and level data
  * @returns {Promise<Object>} User profile object
  */
-export async function getUserProfile() {
+export async function getUserProfile(userId) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const id = await resolveUserId(userId);
+        if (!id) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('id', user.id)
+            .eq('id', id)
             .single();
 
         if (error) throw error;
+        dataCache.profile = data;
         return data;
     } catch (error) {
         console.error('Error fetching user profile:', error);
@@ -157,15 +230,15 @@ export async function createUserProfile(userId, email) {
  * @param {Object} updates - Fields to update
  * @returns {Promise<Object>} Updated profile
  */
-export async function updateUserProfile(updates) {
+export async function updateUserProfile(updates, userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('user_profiles')
             .update(updates)
-            .eq('id', user.id)
+            .eq('id', userId)
             .select()
             .single();
 
@@ -183,35 +256,46 @@ export async function updateUserProfile(updates) {
  * @param {number} amount - XP to add
  * @returns {Promise<Object>} Updated profile with new level/XP
  */
-export async function addUserXP(amount) {
-    try {
-        const profile = await getUserProfile();
+export async function addUserXP(amount, userIdArg) {
+    const userId = await resolveUserId(userIdArg);
+    if (!userId) throw new Error('No authenticated user');
 
-        let newCurrentXP = profile.current_xp + amount;
-        let newLevel = profile.level;
-        let newNextLevelXP = profile.next_level_xp;
+    const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-        // Calculate current level's XP requirement
-        const currentNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
+    if (error) throw error;
 
-        // Handle level ups (can be multiple)
-        while (newCurrentXP >= currentNextLevelXP) {
-            newLevel += 1;
-            newCurrentXP -= currentNextLevelXP;
-            newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
-        }
+    let newCurrentXP = profile.current_xp + amount;
+    let newLevel = profile.level;
 
-        return await updateUserProfile({
+    let nextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
+
+    while (newCurrentXP >= nextLevelXP) {
+        newLevel += 1;
+        newCurrentXP -= nextLevelXP;
+        nextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
+    }
+
+    const { data: updatedProfile, error: updateError } = await supabase
+        .from('user_profiles')
+        .update({
             total_xp: profile.total_xp + amount,
             current_xp: newCurrentXP,
             level: newLevel,
-            next_level_xp: newNextLevelXP
-        });
-    } catch (error) {
-        console.error('Error adding user XP:', error);
-        throw error;
-    }
+            next_level_xp: nextLevelXP
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+    if (updateError) throw updateError;
+
+    return updatedProfile;
 }
+
 
 // ============================================
 // SKILLS FUNCTIONS
@@ -221,15 +305,15 @@ export async function addUserXP(amount) {
  * Get all skills for current user
  * @returns {Promise<Array>} Array of 6 skills
  */
-export async function getUserSkills() {
+export async function getUserSkills(userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('skills')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('name');
 
         if (error) throw error;
@@ -245,27 +329,29 @@ export async function getUserSkills() {
  * Uses the user_skill_progress view
  * @returns {Promise<Array>} Skills with progress data
  */
-export async function getSkillProgress() {
+export async function getSkillProgress(userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('user_skill_progress')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('skill_name');
 
         if (error) throw error;
 
         // Transform to match expected format
-        return data.map(skill => ({
+        const progressData = data.map(skill => ({
             name: skill.skill_name,
             currentXP: skill.current_xp,
             level: skill.level,
             maxXP: skill.next_level_xp,
             progress: skill.progress_percentage
         }));
+        dataCache.skillProgress = progressData;
+        return progressData;
     } catch (error) {
         console.error('Error fetching skill progress:', error);
         throw error;
@@ -278,16 +364,16 @@ export async function getSkillProgress() {
  * @param {number} amount - XP to add
  * @returns {Promise<Object>} Updated skill
  */
-export async function updateSkillXP(skillName, amount) {
+export async function updateSkillXP(skillName, amount, userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         // Get current skill data
         const { data: skill, error: fetchError } = await supabase
             .from('skills')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('name', skillName)
             .single();
 
@@ -313,7 +399,7 @@ export async function updateSkillXP(skillName, amount) {
                 current_xp: newCurrentXP,
                 level: newLevel
             })
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('name', skillName)
             .select()
             .single();
@@ -334,21 +420,21 @@ export async function updateSkillXP(skillName, amount) {
  * Get all habits for current user
  * @returns {Promise<Array>} Array of habits
  */
-export async function getUserHabits() {
+export async function getUserHabits(userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('habits')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         // Transform to expected format
-        return data.map(habit => ({
+        const habitsData = data.map(habit => ({
             id: habit.id,
             name: habit.name,
             category: habit.category,
@@ -358,6 +444,8 @@ export async function getUserHabits() {
             longestStreak: habit.longest_streak,
             lastCompleted: habit.last_completed
         }));
+        dataCache.habits = habitsData;
+        return habitsData;
     } catch (error) {
         console.error('Error fetching habits:', error);
         throw error;
@@ -371,7 +459,8 @@ export async function getUserHabits() {
  */
 export async function createHabit(habitData) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -446,10 +535,13 @@ export async function deleteHabit(habitId) {
  */
 export async function toggleHabitCompletion(habitId) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
-        // Get habit data
+        const today = new Date().toISOString().split('T')[0];
+        const xpValue = 10;
+
         const { data: habit, error: habitError } = await supabase
             .from('habits')
             .select('*')
@@ -458,15 +550,10 @@ export async function toggleHabitCompletion(habitId) {
 
         if (habitError) throw habitError;
 
-        const today = new Date().toISOString().split('T')[0];
         const completedToday = !habit.completed_today;
-        const xpValue = 10;
-
         let newStreak = habit.streak;
 
         if (completedToday) {
-            // Completing habit
-            // Check if last completed was yesterday
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -477,68 +564,63 @@ export async function toggleHabitCompletion(habitId) {
                 newStreak = 1;
             }
 
-            // Update habit
-            await updateHabit(habitId, {
-                completed_today: true,
-                streak: newStreak,
-                last_completed: today
-            });
+            // Run updates in parallel instead of sequential
+            await Promise.all([
+                supabase.from('habits').update({
+                    completed_today: true,
+                    streak: newStreak,
+                    last_completed: today
+                }).eq('id', habitId),
 
-            // Log completion
-            await supabase
-                .from('habit_completions')
-                .insert([{
+                supabase.from('habit_completions').insert([{
                     habit_id: habitId,
                     user_id: user.id,
                     completed_date: today,
                     xp_earned: xpValue
-                }]);
+                }]),
 
-            // Award XP to user
-            await addUserXP(xpValue);
+                addUserXP(xpValue, user.id),
 
-            // Award XP to skill
-            if (habit.skill) {
-                await updateSkillXP(habit.skill, xpValue);
-            }
+                habit.skill
+                    ? updateSkillXP(habit.skill, xpValue, user.id)
+                    : Promise.resolve()
+            ]);
+
         } else {
-            // Uncompleting habit
+
             newStreak = Math.max(0, habit.streak - 1);
 
-            // Update habit
-            await updateHabit(habitId, {
-                completed_today: false,
-                streak: newStreak
-            });
+            await Promise.all([
+                supabase.from('habits').update({
+                    completed_today: false,
+                    streak: newStreak
+                }).eq('id', habitId),
 
-            // Remove completion log
-            await supabase
-                .from('habit_completions')
-                .delete()
-                .eq('habit_id', habitId)
-                .eq('completed_date', today);
-
-            // Deduct XP (handled by application logic if needed)
+                supabase.from('habit_completions')
+                    .delete()
+                    .eq('habit_id', habitId)
+                    .eq('completed_date', today)
+            ]);
         }
 
-        // Return updated data
-        const updatedHabit = await supabase
+        // Return updated habit only once
+        const { data: updatedHabit } = await supabase
             .from('habits')
             .select('*')
             .eq('id', habitId)
             .single();
 
-        const updatedProfile = await getUserProfile();
-
         return {
-            habit: updatedHabit.data,
-            profile: updatedProfile
+            habit: updatedHabit,
+            profile: null // let realtime handle profile update
         };
+
     } catch (error) {
         console.error('Error toggling habit completion:', error);
         throw error;
     }
 }
+
 
 /**
  * Get habit completions for date range (for calendar)
@@ -548,7 +630,8 @@ export async function toggleHabitCompletion(habitId) {
  */
 export async function getHabitCompletions(startDate, endDate) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -575,21 +658,21 @@ export async function getHabitCompletions(startDate, endDate) {
  * Get all quests for current user
  * @returns {Promise<Array>} Array of quests
  */
-export async function getUserQuests() {
+export async function getUserQuests(userIdArg) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No authenticated user');
+        const userId = await resolveUserId(userIdArg);
+        if (!userId) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
             .from('quests')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         // Transform to expected format
-        return data.map(quest => ({
+        const questsData = data.map(quest => ({
             id: quest.id,
             title: quest.title,
             description: quest.description,
@@ -599,6 +682,8 @@ export async function getUserQuests() {
             completed: quest.completed,
             completedAt: quest.completed_at
         }));
+        dataCache.quests = questsData;
+        return questsData;
     } catch (error) {
         console.error('Error fetching quests:', error);
         throw error;
@@ -612,7 +697,8 @@ export async function getUserQuests() {
  */
 export async function createQuest(questData) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -743,7 +829,8 @@ export async function completeQuest(questId) {
  */
 export async function createFocusSession(sessionData) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -814,7 +901,8 @@ export async function completeFocusSession(sessionId, xpEarned) {
  */
 export async function getFocusSessions(startDate, endDate) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -845,7 +933,8 @@ export async function getFocusSessions(startDate, endDate) {
  */
 export async function getDailyStats(startDate, endDate) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         const { data, error } = await supabase
@@ -871,7 +960,8 @@ export async function getDailyStats(startDate, endDate) {
  */
 export async function updateDailyStats(date) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const session = await getValidSession();
+        const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
         // Get all habits for user
@@ -925,7 +1015,8 @@ export async function updateDailyStats(date) {
  * @returns {Object} Subscription object (call .unsubscribe() to stop)
  */
 export async function subscribeToHabits(callback, channelId) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return { unsubscribe: () => { } };
 
     const id = channelId || `habits-${user.id}-${Math.random().toString(36).slice(2, 11)}`;
@@ -947,7 +1038,8 @@ export async function subscribeToHabits(callback, channelId) {
  * @returns {Object} Subscription object
  */
 export async function subscribeToSkills(callback, channelId) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return { unsubscribe: () => { } };
 
     const id = channelId || `skills-${user.id}-${Math.random().toString(36).slice(2, 11)}`;
@@ -969,7 +1061,8 @@ export async function subscribeToSkills(callback, channelId) {
  * @returns {Object} Subscription object
  */
 export async function subscribeToQuests(callback, channelId) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return { unsubscribe: () => { } };
 
     const id = channelId || `quests-${user.id}-${Math.random().toString(36).slice(2, 11)}`;
@@ -991,7 +1084,8 @@ export async function subscribeToQuests(callback, channelId) {
  * @returns {Object} Subscription object
  */
 export async function subscribeToProfile(callback, channelId) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return { unsubscribe: () => { } };
 
     const id = channelId || `profile-${user.id}-${Math.random().toString(36).slice(2, 11)}`;

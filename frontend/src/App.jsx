@@ -17,6 +17,81 @@ function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  
+useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('✅ Token refreshed successfully');
+          setSession(currentSession);
+        }
+        if (event === 'SIGNED_OUT') {
+          console.log('👋 User signed out');
+          setSession(null);
+        }
+      }
+    );
+
+    let isRefreshing = false;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !isRefreshing) {
+        console.log('👁️ Page visible - forcing connection refresh');
+        
+        isRefreshing = true;
+        
+        try {
+          // NUCLEAR OPTION: Force reconnect Supabase realtime
+          await supabase.realtime.disconnect();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Get session with short timeout
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('timeout')), 2000)
+          );
+          
+          try {
+            const { data: { session: currentSession } } = await Promise.race([
+              sessionPromise, 
+              timeoutPromise
+            ]);
+            
+            if (currentSession) {
+              setSession(currentSession);
+              console.log('✅ Session recovered');
+            }
+          } catch (timeoutErr) {
+            console.log('⚠️ Session check timed out, triggering refresh');
+            // Force a refresh to recover
+            const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+            if (refreshedSession) {
+              setSession(refreshedSession);
+              console.log('✅ Session refreshed after timeout');
+            }
+          }
+          
+          // Reconnect realtime
+          await supabase.realtime.connect();
+          
+        } catch (error) {
+          console.error('❌ Visibility recovery error:', error);
+        } finally {
+          setTimeout(() => {
+            isRefreshing = false;
+          }, 1000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      subscription?.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     // Check for existing session and initialize user profile
     supabase.auth.getSession().then(async ({ data: { session } }) => {

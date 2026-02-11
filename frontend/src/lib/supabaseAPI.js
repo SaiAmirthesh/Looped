@@ -1,10 +1,9 @@
 /**
  * Supabase Database API Layer
  * Handles all CRUD operations for the Looped application
- */
+*/
 
-import { supabase } from './supabaseClient';
-
+import { supabase, waitForSupabaseReady } from './supabaseClient';
 // ============================================
 // DATA CACHE (In-memory)
 // ============================================
@@ -24,29 +23,136 @@ export const getCachedHabits = () => dataCache.habits;
 export const getCachedQuests = () => dataCache.quests;
 
 // ============================================
-// SESSION MANAGEMENT
+// SESSION MANAGEMENT WITH CACHING
 // ============================================
 
+// Session cache to prevent hanging on background tabs
+let cachedSession = null;
+let sessionFetchTime = 0;
+const SESSION_CACHE_MS = 2000; // Cache for 2 seconds
+
 /**
- * Get a valid session, refreshing if needed.
- * Crucial for recovering from sleep/background tabs where auto-refresh might have paused.
+ * Get session with timeout and caching to prevent hangs
+ */
+async function getCachedSession() {
+    const now = Date.now();
+    
+    // Return cached session if fresh
+    if (cachedSession && (now - sessionFetchTime) < SESSION_CACHE_MS) {
+        console.log('🔐 Using cached session');
+        return cachedSession;
+    }
+    
+    try {
+        console.log('🔐 Fetching fresh session with timeout...');
+        
+        // Try direct getSession first with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 3000)
+        );
+        
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        if (result.error) {
+            console.error('🔐 Session error:', result.error);
+            // On error, try to refresh if we have cached session
+            if (cachedSession) {
+                console.log('🔐 Attempting to refresh stale session...');
+                try {
+                    const { data: { session: refreshed }, error: refreshError } = 
+                        await supabase.auth.refreshSession();
+                    if (!refreshError && refreshed) {
+                        cachedSession = refreshed;
+                        sessionFetchTime = now;
+                        console.log('🔐 Session refreshed successfully');
+                        return refreshed;
+                    }
+                } catch (refreshErr) {
+                    console.error('🔐 Refresh failed:', refreshErr);
+                }
+            }
+            return cachedSession;
+        }
+        
+        // Update cache
+        cachedSession = result.data.session;
+        sessionFetchTime = now;
+        
+        console.log('🔐 Fresh session obtained:', !!cachedSession);
+        return cachedSession;
+        
+    } catch (err) {
+        console.error('🔐 Session fetch timed out:', err.message);
+        
+        // CRITICAL FIX: If timeout, force refresh the session
+        if (cachedSession) {
+            console.log('🔐 Timeout detected - forcing session refresh...');
+            try {
+                const { data: { session: refreshed }, error: refreshError } = 
+                    await Promise.race([
+                        supabase.auth.refreshSession(),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Refresh timeout')), 3000)
+                        )
+                    ]);
+                
+                if (!refreshError && refreshed) {
+                    cachedSession = refreshed;
+                    sessionFetchTime = now;
+                    console.log('🔐 Forced refresh successful');
+                    return refreshed;
+                }
+            } catch (refreshErr) {
+                console.error('🔐 Forced refresh also timed out:', refreshErr.message);
+            }
+        }
+        
+        // Last resort: return stale cache
+        console.log('🔐 Returning stale cached session');
+        return cachedSession;
+    }
+}
+
+/**
+ * Get a valid session, refreshing if needed (with caching)
  */
 async function getValidSession() {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session) return null;
+    const session = await getCachedSession();
+    
+    if (!session) {
+        console.log('🔐 No session available');
+        return null;
+    }
 
-    // Check if access token is expired (or close to it)
-    const expiresAt = session.expires_at; // timestamp in seconds
+    // Check if access token is expired or expiring soon
+    const expiresAt = session.expires_at;
     const now = Math.floor(Date.now() / 1000);
-
-    // Refresh if expired or expiring in < 60 seconds
-    if (expiresAt && (expiresAt < now + 60)) {
-        const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-            console.error('Session refresh failed', refreshError);
-            return null;
+    const timeUntilExpiry = expiresAt - now;
+    
+    // Refresh if expiring in < 5 minutes
+    if (expiresAt && timeUntilExpiry < 300) {
+        console.log('🔐 Session expiring soon, refreshing...');
+        
+        try {
+            const { data: { session: newSession }, error: refreshError } = 
+                await supabase.auth.refreshSession();
+            
+            if (refreshError) {
+                console.error('🔐 Session refresh failed:', refreshError);
+                return session; // Return old session
+            }
+            
+            // Update cache
+            cachedSession = newSession;
+            sessionFetchTime = Date.now();
+            
+            console.log('🔐 Session refreshed successfully');
+            return newSession;
+        } catch (refreshErr) {
+            console.error('🔐 Refresh error:', refreshErr);
+            return session; // Return old session
         }
-        return newSession;
     }
 
     return session;
@@ -60,24 +166,73 @@ async function getValidSession() {
  * Helper to resolve User ID (uses provided ID or fetches session)
  */
 async function resolveUserId(providedId) {
-    if (providedId) return providedId;
-    const session = await getValidSession();
-    return session?.user?.id;
+    console.log('👤 resolveUserId called with:', providedId);
+    
+    if (providedId) {
+        console.log('👤 Using provided ID:', providedId);
+        return providedId;
+    }
+    
+    // Use getUser instead of getSession - it's more reliable after background
+    try {
+        const { data: { user }, error } = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('getUser timeout')), 3000)
+            )
+        ]);
+        
+        if (error || !user) {
+            console.error('👤 getUser failed:', error);
+            // Fallback to cached session
+            const session = await getCachedSession();
+            const userId = session?.user?.id;
+            console.log('👤 Using cached session, user ID:', userId);
+            return userId;
+        }
+        
+        const userId = user.id;
+        console.log('👤 Resolved user ID from getUser:', userId);
+        return userId;
+        
+    } catch (err) {
+        console.error('👤 resolveUserId error:', err.message);
+        // Last resort: cached session
+        const session = await getCachedSession();
+        const userId = session?.user?.id;
+        console.log('👤 Emergency fallback to cache, user ID:', userId);
+        return userId;
+    }
 }
 
 /**
  * Fetch all dashboard data in parallel (profile + habits + quests)
  * ~3x faster than sequential fetches
  */
-export async function getDashboardDataBatch(userIdArg) {
-    const userId = await resolveUserId(userIdArg);
-    if (!userId) throw new Error('No authenticated user');
 
+export async function getDashboardDataBatch(userIdArg) {
+    console.log('🔍 getDashboardDataBatch called');
+    
+    // CRITICAL: Ensure Supabase is ready
+    await waitForSupabaseReady();
+    
+    const userId = await resolveUserId(userIdArg);
+    console.log('🔍 User ID resolved:', userId);
+    
+    if (!userId) {
+        console.error('❌ No user ID - throwing error');
+        throw new Error('No authenticated user');
+    }
+
+    console.log('🔍 Fetching profile, habits, quests in parallel...');
+    
     const [profileRes, habitsRes, questsRes] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', userId).single(),
         supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         supabase.from('quests').select('*').eq('user_id', userId).order('created_at', { ascending: false })
     ]);
+
+    console.log('🔍 Responses received - Profile:', !!profileRes.data, 'Habits:', habitsRes.data?.length, 'Quests:', questsRes.data?.length);
 
     if (profileRes.error) throw profileRes.error;
     if (habitsRes.error) throw habitsRes.error;
@@ -96,6 +251,8 @@ export async function getDashboardDataBatch(userIdArg) {
     dataCache.profile = profileRes.data;
     dataCache.habits = habits;
     dataCache.quests = quests;
+    
+    console.log('✅ Returning dashboard data');
     return { profile: profileRes.data, habits, quests };
 }
 
@@ -131,7 +288,7 @@ export async function getProfileDataBatch(userIdArg) {
 
     dataCache.profile = profileRes.data;
     dataCache.skills = skills;
-    dataCache.habits = habits; // Be mindful this has extra fields that might not match getUserHabits exactly but should be superset
+    dataCache.habits = habits;
 
     return { profile: profileRes.data, skills, habits, quests };
 }
@@ -140,12 +297,10 @@ export async function getProfileDataBatch(userIdArg) {
  * Fetch calendar data in parallel
  */
 export async function getCalendarDataBatch(userIdArg, startDate, endDate) {
-    // Handle argument shift if needed
     let userIdResolved = userIdArg;
     let start = startDate;
     let end = endDate;
 
-    // Check if first arg looks like a date string (YYYY-MM-DD), implying userId was skipped
     if (typeof userIdArg === 'string' && userIdArg.match(/^\d{4}-\d{2}-\d{2}$/)) {
         start = userIdArg;
         end = startDate;
@@ -174,7 +329,6 @@ export async function getCalendarDataBatch(userIdArg, startDate, endDate) {
 
 /**
  * Get user profile with XP and level data
- * @returns {Promise<Object>} User profile object
  */
 export async function getUserProfile(userId) {
     try {
@@ -198,9 +352,6 @@ export async function getUserProfile(userId) {
 
 /**
  * Create user profile (called on first login)
- * @param {string} userId - User ID from auth
- * @param {string} email - User email
- * @returns {Promise<Object>} Created profile
  */
 export async function createUserProfile(userId, email) {
     try {
@@ -227,8 +378,6 @@ export async function createUserProfile(userId, email) {
 
 /**
  * Update user profile data
- * @param {Object} updates - Fields to update
- * @returns {Promise<Object>} Updated profile
  */
 export async function updateUserProfile(updates, userIdArg) {
     try {
@@ -251,10 +400,7 @@ export async function updateUserProfile(updates, userIdArg) {
 }
 
 /**
- * Add XP to user and handle leveling
- * Uses formula: nextLevelXP = 100 * (level ^ 1.5)
- * @param {number} amount - XP to add
- * @returns {Promise<Object>} Updated profile with new level/XP
+ * Add XP to user and handle leveling (OPTIMIZED - no redundant fetch)
  */
 export async function addUserXP(amount, userIdArg) {
     const userId = await resolveUserId(userIdArg);
@@ -270,7 +416,6 @@ export async function addUserXP(amount, userIdArg) {
 
     let newCurrentXP = profile.current_xp + amount;
     let newLevel = profile.level;
-
     let nextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
 
     while (newCurrentXP >= nextLevelXP) {
@@ -292,10 +437,8 @@ export async function addUserXP(amount, userIdArg) {
         .single();
 
     if (updateError) throw updateError;
-
     return updatedProfile;
 }
-
 
 // ============================================
 // SKILLS FUNCTIONS
@@ -303,7 +446,6 @@ export async function addUserXP(amount, userIdArg) {
 
 /**
  * Get all skills for current user
- * @returns {Promise<Array>} Array of 6 skills
  */
 export async function getUserSkills(userIdArg) {
     try {
@@ -326,8 +468,6 @@ export async function getUserSkills(userIdArg) {
 
 /**
  * Get skills with calculated progress percentages
- * Uses the user_skill_progress view
- * @returns {Promise<Array>} Skills with progress data
  */
 export async function getSkillProgress(userIdArg) {
     try {
@@ -342,7 +482,6 @@ export async function getSkillProgress(userIdArg) {
 
         if (error) throw error;
 
-        // Transform to match expected format
         const progressData = data.map(skill => ({
             name: skill.skill_name,
             currentXP: skill.current_xp,
@@ -360,16 +499,12 @@ export async function getSkillProgress(userIdArg) {
 
 /**
  * Add XP to a specific skill and handle leveling
- * @param {string} skillName - Name of skill (Focus, Learning, etc.)
- * @param {number} amount - XP to add
- * @returns {Promise<Object>} Updated skill
  */
 export async function updateSkillXP(skillName, amount, userIdArg) {
     try {
         const userId = await resolveUserId(userIdArg);
         if (!userId) throw new Error('No authenticated user');
 
-        // Get current skill data
         const { data: skill, error: fetchError } = await supabase
             .from('skills')
             .select('*')
@@ -381,18 +516,14 @@ export async function updateSkillXP(skillName, amount, userIdArg) {
 
         let newCurrentXP = skill.current_xp + amount;
         let newLevel = skill.level;
-
-        // Calculate XP needed for current level
         let nextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
 
-        // Handle level ups
         while (newCurrentXP >= nextLevelXP) {
             newLevel += 1;
             newCurrentXP -= nextLevelXP;
             nextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
         }
 
-        // Update skill
         const { data: updatedSkill, error: updateError } = await supabase
             .from('skills')
             .update({
@@ -418,7 +549,6 @@ export async function updateSkillXP(skillName, amount, userIdArg) {
 
 /**
  * Get all habits for current user
- * @returns {Promise<Array>} Array of habits
  */
 export async function getUserHabits(userIdArg) {
     try {
@@ -433,7 +563,6 @@ export async function getUserHabits(userIdArg) {
 
         if (error) throw error;
 
-        // Transform to expected format
         const habitsData = data.map(habit => ({
             id: habit.id,
             name: habit.name,
@@ -454,8 +583,6 @@ export async function getUserHabits(userIdArg) {
 
 /**
  * Create a new habit
- * @param {Object} habitData - Habit details {name, category, skill}
- * @returns {Promise<Object>} Created habit
  */
 export async function createHabit(habitData) {
     try {
@@ -487,9 +614,6 @@ export async function createHabit(habitData) {
 
 /**
  * Update habit data
- * @param {string} habitId - Habit ID
- * @param {Object} updates - Fields to update
- * @returns {Promise<Object>} Updated habit
  */
 export async function updateHabit(habitId, updates) {
     try {
@@ -510,8 +634,6 @@ export async function updateHabit(habitId, updates) {
 
 /**
  * Delete a habit
- * @param {string} habitId - Habit ID
- * @returns {Promise<void>}
  */
 export async function deleteHabit(habitId) {
     try {
@@ -528,10 +650,7 @@ export async function deleteHabit(habitId) {
 }
 
 /**
- * Toggle habit completion for today
- * Handles XP rewards, streak tracking, and completion logging
- * @param {string} habitId - Habit ID
- * @returns {Promise<Object>} Updated habit and profile
+ * Toggle habit completion for today (OPTIMIZED - parallel updates)
  */
 export async function toggleHabitCompletion(habitId) {
     try {
@@ -564,7 +683,7 @@ export async function toggleHabitCompletion(habitId) {
                 newStreak = 1;
             }
 
-            // Run updates in parallel instead of sequential
+            // OPTIMIZED: Run all updates in parallel
             await Promise.all([
                 supabase.from('habits').update({
                     completed_today: true,
@@ -587,7 +706,6 @@ export async function toggleHabitCompletion(habitId) {
             ]);
 
         } else {
-
             newStreak = Math.max(0, habit.streak - 1);
 
             await Promise.all([
@@ -603,7 +721,7 @@ export async function toggleHabitCompletion(habitId) {
             ]);
         }
 
-        // Return updated habit only once
+        // Return updated habit (realtime handles profile update)
         const { data: updatedHabit } = await supabase
             .from('habits')
             .select('*')
@@ -612,7 +730,7 @@ export async function toggleHabitCompletion(habitId) {
 
         return {
             habit: updatedHabit,
-            profile: null // let realtime handle profile update
+            profile: null // Let realtime subscriptions handle profile updates
         };
 
     } catch (error) {
@@ -621,12 +739,8 @@ export async function toggleHabitCompletion(habitId) {
     }
 }
 
-
 /**
  * Get habit completions for date range (for calendar)
- * @param {string} startDate - Start date (YYYY-MM-DD)
- * @param {string} endDate - End date (YYYY-MM-DD)
- * @returns {Promise<Array>} Completion records
  */
 export async function getHabitCompletions(startDate, endDate) {
     try {
@@ -656,7 +770,6 @@ export async function getHabitCompletions(startDate, endDate) {
 
 /**
  * Get all quests for current user
- * @returns {Promise<Array>} Array of quests
  */
 export async function getUserQuests(userIdArg) {
     try {
@@ -671,7 +784,6 @@ export async function getUserQuests(userIdArg) {
 
         if (error) throw error;
 
-        // Transform to expected format
         const questsData = data.map(quest => ({
             id: quest.id,
             title: quest.title,
@@ -692,8 +804,6 @@ export async function getUserQuests(userIdArg) {
 
 /**
  * Create a new quest
- * @param {Object} questData - Quest details
- * @returns {Promise<Object>} Created quest
  */
 export async function createQuest(questData) {
     try {
@@ -725,9 +835,6 @@ export async function createQuest(questData) {
 
 /**
  * Update quest data
- * @param {string} questId - Quest ID
- * @param {Object} updates - Fields to update
- * @returns {Promise<Object>} Updated quest
  */
 export async function updateQuest(questId, updates) {
     try {
@@ -748,8 +855,6 @@ export async function updateQuest(questId, updates) {
 
 /**
  * Delete a quest
- * @param {string} questId - Quest ID
- * @returns {Promise<void>}
  */
 export async function deleteQuest(questId) {
     try {
@@ -766,13 +871,10 @@ export async function deleteQuest(questId) {
 }
 
 /**
- * Complete a quest and award XP
- * @param {string} questId - Quest ID
- * @returns {Promise<Object>} Updated quest and profile
+ * Complete a quest and award XP (OPTIMIZED - removed redundant getUserProfile)
  */
 export async function completeQuest(questId) {
     try {
-        // Get quest data
         const { data: quest, error: questError } = await supabase
             .from('quests')
             .select('*')
@@ -785,32 +887,25 @@ export async function completeQuest(questId) {
             throw new Error('Quest already completed');
         }
 
-        // Mark quest as completed
-        await updateQuest(questId, {
-            completed: true,
-            completed_at: new Date().toISOString()
-        });
+        // Run in parallel
+        await Promise.all([
+            updateQuest(questId, {
+                completed: true,
+                completed_at: new Date().toISOString()
+            }),
+            addUserXP(quest.xp_reward),
+            quest.skill ? updateSkillXP(quest.skill, quest.xp_reward) : Promise.resolve()
+        ]);
 
-        // Award XP to user
-        await addUserXP(quest.xp_reward);
-
-        // Award XP to skill
-        if (quest.skill) {
-            await updateSkillXP(quest.skill, quest.xp_reward);
-        }
-
-        // Return updated data
         const updatedQuest = await supabase
             .from('quests')
             .select('*')
             .eq('id', questId)
             .single();
 
-        const updatedProfile = await getUserProfile();
-
         return {
             quest: updatedQuest.data,
-            profile: updatedProfile
+            profile: null // Let realtime subscriptions handle profile updates
         };
     } catch (error) {
         console.error('Error completing quest:', error);
@@ -824,8 +919,6 @@ export async function completeQuest(questId) {
 
 /**
  * Create a new focus session
- * @param {Object} sessionData - Session details
- * @returns {Promise<Object>} Created session
  */
 export async function createFocusSession(sessionData) {
     try {
@@ -854,14 +947,10 @@ export async function createFocusSession(sessionData) {
 }
 
 /**
- * Complete a focus session and award XP
- * @param {string} sessionId - Session ID
- * @param {number} xpEarned - XP to award
- * @returns {Promise<Object>} Updated session and profile
+ * Complete a focus session and award XP (OPTIMIZED)
  */
 export async function completeFocusSession(sessionId, xpEarned) {
     try {
-        // Update session
         const { data: session, error: sessionError } = await supabase
             .from('focus_sessions')
             .update({
@@ -875,17 +964,15 @@ export async function completeFocusSession(sessionId, xpEarned) {
 
         if (sessionError) throw sessionError;
 
-        // Award XP to user
-        await addUserXP(xpEarned);
-
-        // Award XP to Focus skill
-        await updateSkillXP('Focus', xpEarned);
-
-        const updatedProfile = await getUserProfile();
+        // Run XP updates in parallel
+        await Promise.all([
+            addUserXP(xpEarned),
+            updateSkillXP('Focus', xpEarned)
+        ]);
 
         return {
             session,
-            profile: updatedProfile
+            profile: null // Let realtime subscriptions handle profile updates
         };
     } catch (error) {
         console.error('Error completing focus session:', error);
@@ -895,9 +982,6 @@ export async function completeFocusSession(sessionId, xpEarned) {
 
 /**
  * Get focus sessions for date range
- * @param {string} startDate - Start date
- * @param {string} endDate - End date
- * @returns {Promise<Array>} Focus sessions
  */
 export async function getFocusSessions(startDate, endDate) {
     try {
@@ -927,9 +1011,6 @@ export async function getFocusSessions(startDate, endDate) {
 
 /**
  * Get daily stats for date range
- * @param {string} startDate - Start date (YYYY-MM-DD)
- * @param {string} endDate - End date (YYYY-MM-DD)
- * @returns {Promise<Array>} Daily stats
  */
 export async function getDailyStats(startDate, endDate) {
     try {
@@ -955,8 +1036,6 @@ export async function getDailyStats(startDate, endDate) {
 
 /**
  * Update or create daily stats for a specific date
- * @param {string} date - Date (YYYY-MM-DD)
- * @returns {Promise<Object>} Updated stats
  */
 export async function updateDailyStats(date) {
     try {
@@ -964,22 +1043,16 @@ export async function updateDailyStats(date) {
         const user = session?.user;
         if (!user) throw new Error('No authenticated user');
 
-        // Get all habits for user
         const habits = await getUserHabits();
         const totalHabits = habits.length;
 
-        // Get completions for this date
         const completions = await getHabitCompletions(date, date);
         const completedHabits = completions.length;
         const completionPercentage = totalHabits > 0 ? (completedHabits / totalHabits) * 100 : 0;
 
-        // Calculate current streak (simplified - can be enhanced)
         const maxStreak = Math.max(...habits.map(h => h.streak), 0);
-
-        // Calculate XP earned this day
         const xpEarned = completions.reduce((sum, c) => sum + (c.xp_earned || 0), 0);
 
-        // Upsert daily stats
         const { data, error } = await supabase
             .from('daily_stats')
             .upsert([{
@@ -1010,9 +1083,6 @@ export async function updateDailyStats(date) {
 
 /**
  * Subscribe to habit changes
- * @param {Function} callback - Called when habits change
- * @param {string} [channelId] - Optional unique channel ID to avoid conflicts when remounting
- * @returns {Object} Subscription object (call .unsubscribe() to stop)
  */
 export async function subscribeToHabits(callback, channelId) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1033,9 +1103,6 @@ export async function subscribeToHabits(callback, channelId) {
 
 /**
  * Subscribe to skill changes
- * @param {Function} callback - Called when skills change
- * @param {string} [channelId] - Optional unique channel ID to avoid conflicts when remounting
- * @returns {Object} Subscription object
  */
 export async function subscribeToSkills(callback, channelId) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1056,9 +1123,6 @@ export async function subscribeToSkills(callback, channelId) {
 
 /**
  * Subscribe to quest changes
- * @param {Function} callback - Called when quests change
- * @param {string} [channelId] - Optional unique channel ID to avoid conflicts when remounting
- * @returns {Object} Subscription object
  */
 export async function subscribeToQuests(callback, channelId) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1079,9 +1143,6 @@ export async function subscribeToQuests(callback, channelId) {
 
 /**
  * Subscribe to user profile changes
- * @param {Function} callback - Called when profile changes
- * @param {string} [channelId] - Optional unique channel ID to avoid conflicts when remounting
- * @returns {Object} Subscription object
  */
 export async function subscribeToProfile(callback, channelId) {
     const { data: { session } } = await supabase.auth.getSession();

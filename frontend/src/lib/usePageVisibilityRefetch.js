@@ -1,20 +1,45 @@
-/**
- * Refetches data when the user returns to the tab (e.g. after Alt+Tab or switching websites).
- * Fixes "stuck loading" when the tab was backgrounded and Supabase/API connections went stale.
- */
-import { useEffect } from 'react';
+// usePageVisibilityRefetch.js - REPLACE
+
+import { useEffect, useRef } from 'react';
+import { waitForSupabaseReady } from './supabaseClient';
 
 export function usePageVisibilityRefetch(refetch) {
-  useEffect(() => {
-    if (typeof refetch !== 'function') return;
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+  const isRefetchingRef = useRef(false);
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refetch();
+  useEffect(() => {
+    if (typeof refetchRef.current !== 'function') return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !isRefetchingRef.current) {
+        console.log('🔄 Page visible - waiting for Supabase recovery');
+        isRefetchingRef.current = true;
+        
+        try {
+          // CRITICAL: Wait for Supabase auto-recovery to complete
+          const ready = await waitForSupabaseReady();
+          
+          if (!ready) {
+            console.error('❌ Supabase not ready, skipping refetch');
+            return;
+          }
+          
+          console.log('🔄 Refetching data...');
+          await refetchRef.current();
+          console.log('✅ Refetch complete');
+        } catch (error) {
+          console.error('❌ Refetch failed:', error);
+        } finally {
+          isRefetchingRef.current = false;
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [refetch]);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 }

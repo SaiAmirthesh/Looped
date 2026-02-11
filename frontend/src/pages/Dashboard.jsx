@@ -27,50 +27,76 @@ const Dashboard = () => {
     const [activeQuests, setActiveQuests] = useState([]);
     const [currentStreak, setCurrentStreak] = useState(0);
 
-    const loadDashboardData = useCallback(async () => {
-        try {
-            const { profile, habits, quests } = await getDashboardDataBatch();
+    const loadDashboardData = useCallback(async (silent = false) => {
+    try {
+        if (!silent) setLoading(true);
+        
+        console.log('📊 Starting dashboard data fetch...');
+        const result = await getDashboardDataBatch();
+        console.log('📊 Dashboard data received:', result);
 
-            setPlayerStats({
-                level: profile.level,
-                currentXP: profile.current_xp,
-                maxXP: profile.next_level_xp,
-                totalXP: profile.total_xp
-            });
-
-            const todayHabits = habits.slice(0, 4).map(h => ({
-                id: h.id,
-                name: h.name,
-                category: h.category,
-                streak: h.streak,
-                completed: h.completedToday
-            }));
-            setDailyHabits(todayHabits);
-
-            const maxStreak = habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0;
-            setCurrentStreak(maxStreak);
-
-            const active = quests.filter(q => !q.completed).slice(0, 2).map(q => ({
-                id: q.id,
-                title: q.title,
-                description: q.description,
-                xpReward: q.xpReward,
-                difficulty: q.difficulty,
-                completed: q.completed
-            }));
-            setActiveQuests(active);
-
-            setLoading(false);
-        } catch (error) {
-            console.error('Error loading dashboard data:', error);
-            setLoading(false);
+        if (!result || !result.profile) {
+            console.error('❌ No profile data returned!');
+            return;
         }
-    }, []);
 
-    const debouncedRefetch = useDebouncedCallback(loadDashboardData, 300);
+        setPlayerStats({
+            level: result.profile.level,
+            currentXP: result.profile.current_xp,
+            maxXP: result.profile.next_level_xp,
+            totalXP: result.profile.total_xp
+        });
+        console.log('✅ Player stats set:', {
+            level: result.profile.level,
+            currentXP: result.profile.current_xp,
+            maxXP: result.profile.next_level_xp,
+            totalXP: result.profile.total_xp
+        });
+
+        const todayHabits = result.habits.slice(0, 4).map(h => ({
+            id: h.id,
+            name: h.name,
+            category: h.category,
+            streak: h.streak,
+            completed: h.completedToday
+        }));
+        setDailyHabits(todayHabits);
+        console.log('✅ Daily habits set:', todayHabits.length, 'habits');
+
+        const maxStreak = result.habits.length > 0 ? Math.max(...result.habits.map(h => h.streak)) : 0;
+        setCurrentStreak(maxStreak);
+
+        const active = result.quests.filter(q => !q.completed).slice(0, 2).map(q => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            xpReward: q.xpReward,
+            difficulty: q.difficulty,
+            completed: q.completed
+        }));
+        setActiveQuests(active);
+        console.log('✅ Active quests set:', active.length, 'quests');
+
+    } catch (error) {
+        console.error('❌ Error loading dashboard data:', error);
+        console.error('❌ Error details:', error.message, error.stack);
+        
+        // If it's an auth error, redirect to login
+        if (error.message?.includes('No authenticated user')) {
+            console.log('🔐 Redirecting to login...');
+            navigate('/login');
+        }
+    } finally {
+        setLoading(false);
+    }
+}, [navigate]);
+
+    // const debouncedRefetch = useDebouncedCallback(loadDashboardData, 300);
+
 
     useEffect(() => {
         let habitsSubscription, questsSubscription, profileSubscription;
+        let isMounted = true;
 
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
@@ -80,12 +106,23 @@ const Dashboard = () => {
                 return;
             }
 
-            loadDashboardData();
-            setUser(session.user);
+            if (isMounted) {
+                setUser(session.user);
+                await loadDashboardData();
 
-            habitsSubscription = await subscribeToHabits(debouncedRefetch);
-            questsSubscription = await subscribeToQuests(debouncedRefetch);
-            profileSubscription = await subscribeToProfile(debouncedRefetch);
+                // **FIX**: Use a SINGLE callback for ALL subscriptions
+                const handleDataChange = () => {
+                    if (isMounted) {
+                        // Silent refetch (no loading spinner)
+                        loadDashboardData(true);
+                    }
+                };
+
+                // Subscribe with the same callback
+                habitsSubscription = await subscribeToHabits(handleDataChange);
+                questsSubscription = await subscribeToQuests(handleDataChange);
+                profileSubscription = await subscribeToProfile(handleDataChange);
+            }
         };
 
         checkUser();
@@ -93,21 +130,22 @@ const Dashboard = () => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!session) {
                 navigate('/login');
-            } else {
+            } else if (isMounted) {
                 setUser(session.user);
                 loadDashboardData();
             }
         });
 
         return () => {
+            isMounted = false;
             subscription.unsubscribe();
             habitsSubscription?.unsubscribe();
             questsSubscription?.unsubscribe();
             profileSubscription?.unsubscribe();
         };
-    }, [navigate, loadDashboardData, debouncedRefetch]);
+    }, [navigate, loadDashboardData]);
 
-    usePageVisibilityRefetch(debouncedRefetch);
+    usePageVisibilityRefetch(() => loadDashboardData(true));
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

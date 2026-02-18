@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { UserProfileProvider } from './context/UserProfileContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -22,9 +23,7 @@ function App() {
       setLoading(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
@@ -40,50 +39,31 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route
-          path="/login"
-          element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-        />
-        <Route
-          path="/register"
-          element={session ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
-        />
+    <UserProfileProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route
+            path="/login"
+            element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+          />
+          <Route
+            path="/register"
+            element={session ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+          />
 
-        <Route
-          path="/dashboard"
-          element={session ? <Dashboard /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/habits"
-          element={session ? <HabitsPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/skills"
-          element={session ? <SkillsPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/quests"
-          element={session ? <QuestsPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/focus"
-          element={session ? <FocusPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/calendar"
-          element={session ? <CalendarPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/profile"
-          element={session ? <ProfilePage /> : <Navigate to="/login" replace />}
-        />
+          <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/login" replace />} />
+          <Route path="/habits"    element={session ? <HabitsPage /> : <Navigate to="/login" replace />} />
+          <Route path="/skills"    element={session ? <SkillsPage /> : <Navigate to="/login" replace />} />
+          <Route path="/quests"    element={session ? <QuestsPage /> : <Navigate to="/login" replace />} />
+          <Route path="/focus"     element={session ? <FocusPage /> : <Navigate to="/login" replace />} />
+          <Route path="/calendar"  element={session ? <CalendarPage /> : <Navigate to="/login" replace />} />
+          <Route path="/profile"   element={session ? <ProfilePage /> : <Navigate to="/login" replace />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </UserProfileProvider>
   );
 }
 

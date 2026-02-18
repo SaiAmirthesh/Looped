@@ -110,4 +110,52 @@
 body {
     background-color: var(--background);
     color: var(--foreground);
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Button press feedback */
+button {
+    transition: transform 0.1s ease, opacity 0.15s ease;
+}
+button:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* Input focus glow */
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ring);
+    transition: box-shadow 0.2s ease;
+}
+
+/* Card hover lift */
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -8px rgba(0,0,0,0.35);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--muted);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+/* Smooth page transitions */
+* {
+    transition-property: color, background-color, border-color;
+    transition-duration: 0.15s;
+    transition-timing-function: ease;
 }

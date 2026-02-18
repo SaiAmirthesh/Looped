@@ -9,14 +9,40 @@ export function UserProfileProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [user, setUser] = useState(null);
 
-  const fetchProfile = useCallback(async (userId) => {
-    const { data } = await supabase
+  const fetchProfile = useCallback(async (userId, authUser = null) => {
+    // First try to get existing profile
+    const { data, error } = await supabase
       .from('user_profiles')
       .select('avatar_url, display_name, level, current_xp, total_xp')
       .eq('id', userId)
+      .maybeSingle();
+
+    if (data) {
+      setProfile({ ...data, next_level_xp: nextLevelXp(data.level) });
+      return;
+    }
+
+    // No profile row yet (e.g. first Google OAuth login) — create one
+    const googleName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || null;
+    const googleAvatar = authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture || null;
+    const { data: newProfile } = await supabase
+      .from('user_profiles')
+      .upsert({
+        id: userId,
+        email: authUser?.email ?? null,
+        display_name: googleName,
+        avatar_url: googleAvatar,
+        level: 1,
+        current_xp: 0,
+        total_xp: 0,
+        next_level_xp: 100,
+      }, { onConflict: 'id' })
+      .select('avatar_url, display_name, level, current_xp, total_xp')
       .single();
-    if (data) setProfile({ ...data, next_level_xp: nextLevelXp(data.level) });
+
+    if (newProfile) setProfile({ ...newProfile, next_level_xp: nextLevelXp(newProfile.level) });
   }, []);
+
 
   useEffect(() => {
     let currentUserId = null;
@@ -25,7 +51,7 @@ export function UserProfileProvider({ children }) {
       if (session) {
         currentUserId = session.user.id;
         setUser(session.user);
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user);
       }
     });
 
@@ -35,7 +61,7 @@ export function UserProfileProvider({ children }) {
         // Only refetch profile if the user actually changed
         if (session.user.id !== currentUserId) {
           currentUserId = session.user.id;
-          fetchProfile(session.user.id);
+          fetchProfile(session.user.id, session.user);
         }
       } else {
         currentUserId = null;

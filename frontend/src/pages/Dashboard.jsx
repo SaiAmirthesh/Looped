@@ -11,10 +11,17 @@ import { Target, Trophy, Flame, TrendingUp, LogOut, Zap } from 'lucide-react';
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const { refreshProfile, applyXpToProfile } = useUserProfile() ?? {};
+    const { profile, refreshProfile, applyXpToProfile } = useUserProfile() ?? {};
+
+    // Derive XP values from context so they update instantly on applyXpToProfile
+    const xpLevel = profile?.level ?? 1;
+    const xpCurrent = profile?.current_xp ?? 0;
+    const xpMax = profile?.next_level_xp ?? Math.floor(100 * Math.pow(xpLevel, 1.5));
+    const xpTotal = profile?.total_xp ?? 0;
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [playerStats, setPlayerStats] = useState({ level: 1, currentXP: 0, maxXP: 100, totalXP: 0 });
+    // Note: XP values are read from context (xpLevel, xpCurrent, xpMax, xpTotal) — not from playerStats
     const [dailyHabits, setDailyHabits] = useState([]);
     const [activeQuests, setActiveQuests] = useState([]);
     const [currentStreak, setCurrentStreak] = useState(0);
@@ -163,18 +170,18 @@ const Dashboard = () => {
                                 </div>
                                 <span className="font-semibold text-foreground">Player Progress</span>
                             </div>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Level {playerStats.level}</span>
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Level {xpLevel}</span>
                         </div>
-                        <XPBar currentXP={playerStats.currentXP} maxXP={playerStats.maxXP} level={playerStats.level} />
+                        <XPBar currentXP={xpCurrent} maxXP={xpMax} level={xpLevel} />
                     </div>
 
                     {/* Stat Cards */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
-                            { title: 'Total XP', value: playerStats.totalXP.toLocaleString(), icon: <Trophy className="w-5 h-5" />, color: 'text-primary', bg: 'bg-primary/10', sub: 'All time' },
+                            { title: 'Total XP', value: xpTotal.toLocaleString(), icon: <Trophy className="w-5 h-5" />, color: 'text-primary', bg: 'bg-primary/10', sub: 'All time' },
                             { title: 'Habits Done', value: habitsCompleteCount.toString(), icon: <Target className="w-5 h-5" />, color: 'text-chart-2', bg: 'bg-chart-2/10', sub: 'Today' },
                             { title: 'Streak', value: `${currentStreak}d`, icon: <Flame className="w-5 h-5" />, color: 'text-orange-500', bg: 'bg-orange-500/10', sub: 'Current' },
-                            { title: 'Level Progress', value: `${Math.round((playerStats.currentXP / playerStats.maxXP) * 100)}%`, icon: <TrendingUp className="w-5 h-5" />, color: 'text-chart-4', bg: 'bg-chart-4/10', sub: 'To next level' },
+                            { title: 'Level Progress', value: `${Math.round((xpCurrent / xpMax) * 100)}%`, icon: <TrendingUp className="w-5 h-5" />, color: 'text-chart-4', bg: 'bg-chart-4/10', sub: 'To next level' },
                         ].map(stat => (
                             <div key={stat.title} className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-colors">
                                 <div className="flex items-center justify-between mb-3">

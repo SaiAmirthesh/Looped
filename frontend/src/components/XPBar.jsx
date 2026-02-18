@@ -19,7 +19,14 @@ export default function XPBar({
         >
           Level {level}
         </motion.span>
-        <span>{currentXP} / {maxXP} XP</span>
+        <motion.span
+          key={`${level}-${currentXP}`}
+          initial={{ opacity: 0.5, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {currentXP} / {maxXP} XP
+        </motion.span>
       </div>
 
       {/* Track */}
@@ -27,11 +34,11 @@ export default function XPBar({
         className="w-full h-3 rounded-full overflow-hidden relative"
         style={{ backgroundColor: 'var(--border)' }}
       >
-        {/* Animated fill */}
+        {/* Animated fill — key on level so level-up resets from 0, otherwise smooth transition */}
         <motion.div
-          initial={{ width: 0 }}
+          key={level}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: [0.34, 1.56, 0.64, 1] }}
+          transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
           className="h-full rounded-full relative overflow-hidden"
           style={{ backgroundColor: 'var(--accent)' }}
         >

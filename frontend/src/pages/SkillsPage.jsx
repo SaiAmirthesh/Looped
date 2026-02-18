@@ -83,41 +83,41 @@ const SkillsPage = () => {
     return (
         <div className="flex min-h-screen bg-background">
             <Navigation />
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b border-border" style={{ backgroundColor: 'var(--background)' }}>
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-border" style={{ backgroundColor: 'var(--background)' }}>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Skill Tree</h1>
-                        <p className="text-sm text-muted-foreground">Level up your skills by completing habits and quests</p>
+                        <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Skill Tree</h1>
+                        <p className="hidden md:block text-sm text-muted-foreground">Level up your skills by completing habits and quests</p>
                     </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="px-4 py-6 md:p-8 space-y-5 md:space-y-6">
                     {/* Summary Stats */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Level</span>
+                    <div className="grid grid-cols-3 gap-3 md:gap-4">
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm text-center md:text-left">
+                            <div className="flex items-center justify-center md:justify-start gap-1.5 mb-1 text-muted-foreground">
+                                <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Total</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{totalLevel}</div>
-                            <div className="text-xs text-muted-foreground mt-1">across all skills</div>
+                            <div className="text-xl md:text-3xl font-bold text-foreground">{totalLevel}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">all points</div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Zap className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Average Level</span>
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm text-center md:text-left">
+                            <div className="flex items-center justify-center md:justify-start gap-1.5 mb-1 text-muted-foreground">
+                                <Zap className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Avg</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{averageLevel}</div>
-                            <div className="text-xs text-muted-foreground mt-1">per skill</div>
+                            <div className="text-xl md:text-3xl font-bold text-foreground">{averageLevel}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">level per skill</div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Target className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Highest Skill</span>
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm text-center md:text-left">
+                            <div className="flex items-center justify-center md:justify-start gap-1.5 mb-1 text-muted-foreground">
+                                <Target className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Master</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{highestSkill?.name || '—'}</div>
-                            <div className="text-xs text-muted-foreground mt-1">Level {highestSkill?.level || 0}</div>
+                            <div className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate">{highestSkill?.name || '—'}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">Level {highestSkill?.level || 0}</div>
                         </div>
                     </div>
 
@@ -126,36 +126,36 @@ const SkillsPage = () => {
                         {skills.map(skill => {
                             const Icon = skill.icon;
                             return (
-                                <div key={skill.name} className="bg-card border border-border rounded-xl p-6 hover:border-primary/30 transition-colors group">
+                                <div key={skill.name} className="bg-card border border-border rounded-xl p-5 md:p-6 hover:border-primary/30 transition-all shadow-sm group">
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-11 h-11 ${skill.bg} rounded-xl flex items-center justify-center`}>
+                                            <div className={`w-10 h-10 md:w-11 md:h-11 ${skill.bg} rounded-xl flex items-center justify-center shadow-inner`}>
                                                 <Icon className={`w-5 h-5 ${skill.color}`} />
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold text-foreground">{skill.name}</h3>
-                                                <p className="text-xs text-muted-foreground">Level {skill.level}</p>
+                                                <h3 className="font-bold text-foreground leading-tight">{skill.name}</h3>
+                                                <p className="text-[10px] md:text-xs text-muted-foreground font-medium uppercase tracking-wide">Level {skill.level}</p>
                                             </div>
                                         </div>
-                                        <span className={`text-xs font-bold px-2 py-1 rounded-md ${skill.bg} ${skill.color}`}>
+                                        <span className={`text-[10px] md:text-xs font-bold px-2 py-0.5 md:py-1 rounded-md ${skill.bg} ${skill.color}`}>
                                             Lv.{skill.level}
                                         </span>
                                     </div>
 
-                                    <p className="text-xs text-muted-foreground mb-4 leading-relaxed">{skill.description}</p>
+                                    <p className="text-[11px] md:text-xs text-muted-foreground mb-4 leading-relaxed">{skill.description}</p>
 
                                     <div className="space-y-2">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-muted-foreground">Progress</span>
-                                            <span className="text-foreground font-medium">{skill.currentXP} / {skill.maxXP} XP</span>
+                                        <div className="flex justify-between items-center text-[10px] md:text-xs">
+                                            <span className="text-muted-foreground font-medium">Next Level</span>
+                                            <span className="text-foreground font-bold">{skill.currentXP} / {skill.maxXP} XP</span>
                                         </div>
-                                        <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                                        <div className="w-full bg-muted/50 rounded-full h-2 md:h-1.5 overflow-hidden">
                                             <div
-                                                className={`${skill.bar} h-1.5 rounded-full transition-all duration-500`}
+                                                className={`${skill.bar} h-full rounded-full transition-all duration-700 ease-out`}
                                                 style={{ width: `${skill.progress}%` }}
                                             />
                                         </div>
-                                        <div className="text-xs text-muted-foreground text-right">{skill.progress}% to next level</div>
+                                        <div className="text-[10px] text-muted-foreground text-right font-medium italic">{skill.progress}% Complete</div>
                                     </div>
                                 </div>
                             );
@@ -163,23 +163,24 @@ const SkillsPage = () => {
                     </div>
 
                     {/* How Skills Work */}
-                    <div className="bg-gradient-to-r from-primary/10 via-transparent to-chart-2/10 border border-primary/20 rounded-xl p-6">
-                        <h3 className="text-sm font-semibold text-foreground mb-3 uppercase tracking-wide">How Skills Work</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="bg-gradient-to-r from-primary/10 via-transparent to-chart-2/10 border border-primary/20 rounded-xl p-5 md:p-6 shadow-sm">
+                        <h3 className="text-[10px] md:text-xs font-bold text-foreground mb-4 uppercase tracking-widest leading-none">How Skills Work</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-xs">
                             {[
                                 'Complete daily habits to earn skill XP',
                                 'Each level requires more XP than the last',
                                 'Higher levels unlock special rewards',
                             ].map((tip, i) => (
                                 <div key={i} className="flex items-start gap-2">
-                                    <span className="text-primary mt-0.5">•</span>
-                                    <span className="text-muted-foreground">{tip}</span>
+                                    <span className="text-primary font-bold">•</span>
+                                    <span className="text-muted-foreground leading-relaxed">{tip}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </main>
+
         </div>
     );
 };

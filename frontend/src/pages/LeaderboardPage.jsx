@@ -78,27 +78,27 @@ function TableRow({ player, isMe, index }) {
             }}
         >
             {/* Rank */}
-            <td className="py-3.5 pl-5 pr-3 w-12">
+            <td className="py-3 md:py-3.5 pl-3 md:pl-5 pr-2 md:pr-3 w-10 md:w-12">
                 <div className="flex items-center justify-center">
                     <RankIcon rank={player.rank} />
                 </div>
             </td>
 
             {/* Player */}
-            <td className="py-3.5 pr-4">
-                <div className="flex items-center gap-3">
-                    <AvatarCell url={player.avatar_url} name={player.display_name} size={36} />
+            <td className="py-3 md:py-3.5 pr-2 md:pr-4">
+                <div className="flex items-center gap-2 md:gap-3">
+                    <AvatarCell url={player.avatar_url} name={player.display_name} size={window.innerWidth < 768 ? 28 : 36} />
                     <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground truncate">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <span className="text-xs md:text-sm font-semibold text-foreground truncate max-w-[80px] md:max-w-none">
                                 {player.display_name}
                             </span>
                             {isMe && (
                                 <span
-                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                    className="text-[8px] md:text-[10px] font-extrabold px-1 py-0.5 rounded-full flex-shrink-0"
                                     style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                                 >
-                                    You
+                                    YOU
                                 </span>
                             )}
                         </div>
@@ -107,9 +107,9 @@ function TableRow({ player, isMe, index }) {
             </td>
 
             {/* Level */}
-            <td className="py-3.5 pr-4 w-20">
+            <td className="py-3 md:py-3.5 pr-2 md:pr-4 w-16 md:w-20">
                 <span
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                    className="text-[10px] md:text-xs font-bold px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg"
                     style={{
                         background: isTop3 ? `${color}20` : 'var(--muted)',
                         color: isTop3 ? color : 'var(--muted-foreground)',
@@ -128,12 +128,12 @@ function TableRow({ player, isMe, index }) {
             </td>
 
             {/* Total XP */}
-            <td className="py-3.5 pr-5 w-32 text-right">
+            <td className="py-3 md:py-3.5 pr-3 md:pr-5 w-24 md:w-32 text-right">
                 <div
-                    className="flex items-center justify-end gap-1 font-bold text-sm"
+                    className="flex items-center justify-end gap-1 font-bold text-xs md:text-sm"
                     style={{ color: isTop3 ? color : 'var(--accent)' }}
                 >
-                    <Zap className="w-3.5 h-3.5" />
+                    <Zap className="w-3 h-3 md:w-3.5 md:h-3.5" />
                     {player.total_xp.toLocaleString()}
                 </div>
             </td>
@@ -165,54 +165,50 @@ function PodiumSlot({ player, isMe }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: player.rank * 0.12, duration: 0.45, ease: 'easeOut' }}
             className="flex flex-col items-center flex-1"
-            style={{ maxWidth: 180 }}
+            style={{ maxWidth: window.innerWidth < 768 ? 120 : 180 }}
         >
             {/* ── Floating info above platform ── */}
-            <div className="flex flex-col items-center gap-2 mb-3 ">
+            <div className="flex flex-col items-center gap-1.5 md:gap-2 mb-3 ">
                 {/* Avatar */}
                 <div className="relative">
                     <div
                         className="rounded-full overflow-hidden flex items-center justify-center"
                         style={{
-                            width: player.rank === 1 ? 72 : 60,
-                            height: player.rank === 1 ? 72 : 60,
+                            width: player.rank === 1 ? (window.innerWidth < 768 ? 56 : 72) : (window.innerWidth < 768 ? 44 : 60),
+                            height: player.rank === 1 ? (window.innerWidth < 768 ? 56 : 72) : (window.innerWidth < 768 ? 44 : 60),
                             background: 'var(--card)',
-                            boxShadow: `0 0 0 3px ${c.ring}, 0 8px 24px rgba(0,0,0,0.3)`,
+                            boxShadow: `0 0 0 2px ${c.ring}, 0 4px 12px rgba(0,0,0,0.25)`,
                         }}
                     >
                         {player.avatar_url
                             ? <img src={player.avatar_url} alt={player.display_name} className="w-full h-full object-cover" />
-                            : <User style={{ width: player.rank === 1 ? 32 : 27, height: player.rank === 1 ? 32 : 27, color: 'var(--muted-foreground)' }} />
+                            : <User style={{ width: player.rank === 1 ? 24 : 18, height: player.rank === 1 ? 24 : 18, color: 'var(--muted-foreground)' }} />
                         }
                     </div>
                     {/* Crown / medal badge */}
                     <div
-                        className="absolute -top-2 -right-2 rounded-full flex items-center justify-center"
-                        style={{ width: 20, height: 20, background: c.shine, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}
+                        className="absolute -top-1.5 -right-1.5 rounded-full flex items-center justify-center"
+                        style={{ width: 16, height: 16, background: c.shine, boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
                     >
-                        <Icon style={{ width: 11, height: 11, color: '#fff' }} />
+                        <Icon style={{ width: 9, height: 9, color: '#fff' }} />
                     </div>
                     {isMe && (
                         <div
-                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold px-1.5 rounded-full whitespace-nowrap"
+                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-bold px-1.5 rounded-full whitespace-nowrap"
                             style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                         >
-                            You
+                            YOU
                         </div>
                     )}
                 </div>
 
                 {/* Name */}
-                <div className="text-center px-1">
-                    <p className="text-sm font-bold text-foreground leading-tight truncate max-w-[140px]">
+                <div className="text-center px-0.5">
+                    <p className="text-[10px] md:text-sm font-bold text-foreground leading-tight truncate max-w-[80px] md:max-w-[140px]">
                         {player.display_name}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                        Lv {player.level} &nbsp;&bull;&nbsp;
-                        <span style={{ color: c.shine }}>
-                            <Zap style={{ display: 'inline', width: 10, height: 10, verticalAlign: 'middle' }} />
-                            {' '}{player.total_xp.toLocaleString()}
-                        </span>
+                    <p className="text-[9px] md:text-xs text-muted-foreground mt-0.5 font-medium">
+                        Lv {player.level}
                     </p>
                 </div>
             </div>
@@ -224,23 +220,23 @@ function PodiumSlot({ player, isMe }) {
                 transition={{ delay: player.rank * 0.12 + 0.2, duration: 0.4, ease: 'easeOut' }}
                 style={{
                     width: '100%',
-                    height: h,
+                    height: window.innerWidth < 768 ? h * 0.7 : h,
                     background: `linear-gradient(160deg, ${c.shine}cc, ${c.platform})`,
-                    borderRadius: '10px 10px 0 0',
+                    borderRadius: '8px 8px 0 0',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 4,
+                    gap: 2,
                     transformOrigin: 'bottom',
-                    boxShadow: `inset 0 2px 0 rgba(255,255,255,0.15), 0 -2px 12px rgba(0,0,0,0.2)`,
+                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.1), 0 -1px 8px rgba(0,0,0,0.15)`,
                 }}
             >
-                <span style={{ fontSize: 28, fontWeight: 900, color: c.text, letterSpacing: 1, lineHeight: 1 }}>
+                <span style={{ fontSize: window.innerWidth < 768 ? 18 : 28, fontWeight: 900, color: c.text, letterSpacing: 1, lineHeight: 1 }}>
                     {RANK_LABEL[player.rank]}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 600, color: `${c.text}99`, letterSpacing: 2, textTransform: 'uppercase' }}>
-                    Place
+                <span style={{ fontSize: window.innerWidth < 768 ? 8 : 10, fontWeight: 600, color: `${c.text}99`, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                    Rank
                 </span>
             </motion.div>
         </motion.div>
@@ -292,38 +288,38 @@ const LeaderboardPage = () => {
     return (
         <div className="flex min-h-screen bg-background">
             <Navigation />
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
 
                 {/* ── Header ── */}
                 <div
-                    className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b border-border"
+                    className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-border"
                     style={{ backgroundColor: 'var(--background)' }}
                 >
-                    <div>
-                        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                            <Trophy className="w-6 h-6 text-yellow-500" />
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2 truncate">
+                            <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
                             Leaderboard
                         </h1>
-                        <p className="text-sm text-muted-foreground">All adventurers ranked by total XP earned</p>
+                        <p className="hidden md:block text-sm text-muted-foreground">All adventurers ranked by total XP</p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                         {myRank && (
                             <div
-                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border"
+                                className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold px-2.5 md:px-3 py-1.5 rounded-lg border bg-primary/5"
                                 style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}
                             >
-                                <Trophy className="w-3.5 h-3.5" />
-                                Your rank: #{myRank}
+                                <Trophy className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                                <span className="uppercase tracking-wider">#{myRank}</span>
                             </div>
                         )}
-                        <span className="text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-lg">
-                            {players.length} players
+                        <span className="text-[10px] md:text-xs text-muted-foreground bg-muted px-2.5 md:px-3 py-1.5 rounded-lg font-semibold uppercase tracking-widest">
+                            {players.length} Users
                         </span>
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8">
+                <div className="px-4 py-6 md:p-8 space-y-6 md:space-y-8">
 
                     {/* ── Podium ── */}
                     {!loading && players.length >= 1 && (() => {
@@ -331,16 +327,15 @@ const LeaderboardPage = () => {
                         // Visual order: 2nd (left) · 1st (centre) · 3rd (right)
                         const order = [top3[1], top3[0], top3[2]];
                         return (
-                            <section className="flex flex-col items-center">
-                                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-10 text-center">
+                            <section className="flex flex-col items-center overflow-hidden">
+                                <h2 className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mb-8 md:mb-10 text-center">
                                     Top Adventurers
                                 </h2>
                                 {/* Platform stage — fixed width, centred */}
                                 <div
-                                    className="flex items-end justify-center gap-0"
+                                    className="flex items-end justify-center gap-0 w-full"
                                     style={{
-                                        width: '100%',
-                                        maxWidth: 480,
+                                        maxWidth: window.innerWidth < 768 ? '100%' : 480,
                                         borderBottom: '4px solid var(--border)',
                                         paddingBottom: 0,
                                     }}
@@ -354,52 +349,54 @@ const LeaderboardPage = () => {
                     })()}
 
                     {/* ── Table ── */}
-                    <div className="rounded-xl border border-border overflow-hidden" style={{ background: 'var(--card)' }}>
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr
-                                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border"
-                                    style={{ background: 'var(--muted)' }}
-                                >
-                                    <th className="py-3 pl-5 pr-3 text-center w-12">#</th>
-                                    <th className="py-3 pr-4 text-left">Player</th>
-                                    <th className="py-3 pr-4 text-left w-20">Level</th>
-                                    <th className="py-3 pr-4 text-left w-48 hidden md:table-cell">XP Progress</th>
-                                    <th className="py-3 pr-5 text-right w-32">Total XP</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                                {loading ? (
-                                    <SkeletonRows />
-                                ) : players.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="py-20 text-center">
-                                            <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                                            <p className="text-foreground font-semibold mb-1">No players yet</p>
-                                            <p className="text-sm text-muted-foreground">Complete habits and quests to appear here!</p>
-                                        </td>
+                    <div className="rounded-xl border border-border overflow-hidden shadow-sm" style={{ background: 'var(--card)' }}>
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr
+                                        className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border"
+                                        style={{ background: 'var(--muted)' }}
+                                    >
+                                        <th className="py-3 pl-3 md:pl-5 pr-2 md:pr-3 text-center w-10 md:w-12">#</th>
+                                        <th className="py-3 pr-2 md:pr-4 text-left">User</th>
+                                        <th className="py-3 pr-2 md:pr-4 text-left w-16 md:w-20">Lvl</th>
+                                        <th className="py-3 pr-4 text-left w-48 hidden md:table-cell">XP Progress</th>
+                                        <th className="py-3 pr-3 md:pr-5 text-right w-24 md:w-32">Total XP</th>
                                     </tr>
-                                ) : (
-                                    players.map((p, i) => (
-                                        <TableRow
-                                            key={p.id}
-                                            player={p}
-                                            isMe={p.id === user?.id}
-                                            index={i}
-                                        />
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {loading ? (
+                                        <SkeletonRows />
+                                    ) : players.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="py-16 md:py-20 text-center px-4">
+                                                <Trophy className="w-8 h-8 md:w-10 md:h-10 text-muted-foreground/30 mx-auto mb-3" />
+                                                <p className="text-foreground font-bold mb-1">No players yet</p>
+                                                <p className="text-xs md:text-sm text-muted-foreground">Complete habits and quests to appear here!</p>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        players.map((p, i) => (
+                                            <TableRow
+                                                key={p.id}
+                                                player={p}
+                                                isMe={p.id === user?.id}
+                                                index={i}
+                                            />
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* ── "You" callout if not in list ── */}
                     {!loading && user && myRank === null && (
                         <div
-                            className="mt-4 text-center py-4 rounded-xl border border-dashed text-sm text-muted-foreground"
+                            className="mt-4 text-center py-4 px-4 rounded-xl border border-dashed text-xs md:text-sm text-muted-foreground font-medium"
                             style={{ borderColor: 'var(--border)' }}
                         >
-                            You're not on the board yet — complete habits and quests to earn XP and climb the ranks! 🚀
+                            You're not on the board yet — earn XP to climb the ranks! 🚀
                         </div>
                     )}
                 </div>

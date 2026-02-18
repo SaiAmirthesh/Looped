@@ -315,77 +315,77 @@ const CalendarPage = () => {
     return (
         <div className="flex min-h-screen bg-background">
             <Navigation />
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b border-border"
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-border"
                     style={{ backgroundColor: 'var(--background)' }}>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Calendar</h1>
-                        <p className="text-sm text-muted-foreground">Track progress and manage your reminders</p>
+                        <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Calendar</h1>
+                        <p className="hidden md:block text-sm text-muted-foreground">Track progress and manage your reminders</p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-lg">
-                        <Bell className="w-3.5 h-3.5 text-primary" />
-                        <span>{reminders.length} reminder{reminders.length !== 1 ? 's' : ''} this month</span>
+                    <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-muted-foreground bg-muted px-2 md:px-3 py-1 md:py-1.5 rounded-lg font-medium">
+                        <Bell className="w-3 md:w-3.5 h-3 md:h-3.5 text-primary" />
+                        <span>{reminders.length} reminder{reminders.length !== 1 ? 's' : ''}</span>
                     </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="px-4 py-6 md:p-8 space-y-5 md:space-y-6">
                     {/* Stats Row */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Calendar className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">XP This Month</span>
+                    <div className="grid grid-cols-3 gap-3 md:gap-4">
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Calendar className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">XP</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{monthXp}</div>
-                            <div className="text-xs text-muted-foreground mt-1">across {activeDays} active days</div>
+                            <div className="text-xl md:text-3xl font-bold text-foreground">{monthXp}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">across {activeDays} days</div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Daily Avg XP</span>
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <TrendingUp className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Avg</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{avgXp}</div>
-                            <div className="text-xs text-muted-foreground mt-1">per active day</div>
+                            <div className="text-xl md:text-3xl font-bold text-foreground">{avgXp}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">per active day</div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-5">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Flame className="w-4 h-4 text-orange-500" />
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Active Days</span>
+                        <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Flame className="w-3 h-3 md:w-4 md:h-4 text-orange-500" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Days</span>
                             </div>
-                            <div className="text-3xl font-bold text-foreground">{activeDays}</div>
-                            <div className="text-xs text-muted-foreground mt-1">this month</div>
+                            <div className="text-xl md:text-3xl font-bold text-foreground">{activeDays}</div>
+                            <div className="hidden md:block text-xs text-muted-foreground mt-1">this month</div>
                         </div>
                     </div>
 
                     {/* Calendar Card */}
-                    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm">
                         {/* Month Navigation */}
                         <div className="flex items-center justify-between mb-6">
                             <button onClick={previousMonth}
                                 className="p-2 hover:bg-muted rounded-lg transition text-muted-foreground hover:text-foreground">
-                                <ChevronLeft className="w-5 h-5" />
+                                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
                             </button>
-                            <h2 className="text-lg font-semibold text-foreground">
+                            <h2 className="text-base md:text-lg font-semibold text-foreground">
                                 {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
                             </h2>
                             <button onClick={nextMonth}
                                 className="p-2 hover:bg-muted rounded-lg transition text-muted-foreground hover:text-foreground">
-                                <ChevronRight className="w-5 h-5" />
+                                <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
                             </button>
                         </div>
 
                         {/* Day Headers */}
                         <div className="grid grid-cols-7 mb-2">
                             {dayNames.map((day) => (
-                                <div key={day} className="text-center text-xs font-semibold text-muted-foreground py-2">
+                                <div key={day} className="text-center text-[10px] md:text-xs font-semibold text-muted-foreground py-2 uppercase tracking-widest">
                                     {day}
                                 </div>
                             ))}
                         </div>
 
                         {/* Day Cells */}
-                        <div className="grid grid-cols-7 gap-1.5">
+                        <div className="grid grid-cols-7 gap-1 md:gap-1.5">
                             {Array.from({ length: startingDayOfWeek }).map((_, i) => (
                                 <div key={`empty-${i}`} />
                             ))}
@@ -404,9 +404,9 @@ const CalendarPage = () => {
                                         key={day}
                                         onClick={() => openModal(day)}
                                         className={`
-                                            relative aspect-square rounded-xl flex flex-col items-center justify-center text-sm transition-all
+                                            relative aspect-square rounded-lg md:rounded-xl flex flex-col items-center justify-center text-xs md:text-sm transition-all
                                             ${isToday
-                                                ? 'bg-primary/20 border-2 border-primary text-primary font-bold ring-2 ring-primary/20'
+                                                ? 'bg-primary/20 border-2 border-primary text-primary font-bold shadow-sm'
                                                 : isFuture
                                                     ? 'text-muted-foreground/30 hover:bg-muted/40 border border-transparent'
                                                     : styles
@@ -419,7 +419,7 @@ const CalendarPage = () => {
 
                                         {/* Reminder dot — shown near the date number */}
                                         {hasReminders && (
-                                            <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
+                                            <span className="absolute top-0.5 md:top-1 right-0.5 md:right-1.5 w-1 md:w-1.5 h-1 md:h-1.5 rounded-full bg-primary shadow-sm" />
                                         )}
                                     </button>
                                 );
@@ -427,39 +427,39 @@ const CalendarPage = () => {
                         </div>
 
                         {/* Legend */}
-                        <div className="flex items-center gap-5 mt-6 pt-5 border-t border-border text-xs flex-wrap">
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 border-2 border-primary bg-primary/20 rounded-md" />
+                        <div className="flex items-center gap-3 md:gap-5 mt-6 pt-5 border-t border-border text-[10px] md:text-xs flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 md:w-3 md:h-3 border border-primary bg-primary/20 rounded-[3px]" />
                                 <span className="text-muted-foreground">Today</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-green-500/40 border border-green-500/50 rounded-md" />
-                                <span className="text-muted-foreground">All Done</span>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-green-500/40 border border-green-500/50 rounded-[3px]" />
+                                <span className="text-muted-foreground">Done</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-orange-500/40 border border-orange-500/50 rounded-md" />
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-orange-500/40 border border-orange-500/50 rounded-[3px]" />
                                 <span className="text-muted-foreground">Partial</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-red-500/30 border border-red-500/40 rounded-md" />
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-red-500/30 border border-red-500/40 rounded-[3px]" />
                                 <span className="text-muted-foreground">Missed</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-primary inline-block" />
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-primary inline-block" />
                                 <span className="text-muted-foreground">Reminder</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Upcoming Reminders Panel */}
-                    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div className="bg-card border border-border rounded-xl p-5 md:p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                                <Bell className="w-4 h-4 text-primary" />Upcoming Reminders
+                                <Bell className="w-4 h-4 text-primary" />Upcoming
                             </h3>
                             {upcomingReminders.length > 0 && (
-                                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                    {upcomingReminders.length} upcoming
+                                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-medium">
+                                    {upcomingReminders.length} item{upcomingReminders.length !== 1 ? 's' : ''}
                                 </span>
                             )}
                         </div>
@@ -472,7 +472,7 @@ const CalendarPage = () => {
                             <div className="text-center py-6">
                                 <Bell className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                                 <p className="text-sm text-muted-foreground">No upcoming reminders</p>
-                                <p className="text-xs text-muted-foreground/60 mt-1">Click any date on the calendar to add one</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1">Click any date to add one</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -481,29 +481,29 @@ const CalendarPage = () => {
                                     const isRToday = r.reminder_date === today;
                                     return (
                                         <div key={r.id}
-                                            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background group hover:border-primary/30 transition">
-                                            <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center text-center flex-shrink-0 ${isRToday ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                                                <span className="text-xs font-bold leading-none">
+                                            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background group hover:border-primary/30 transition shadow-sm">
+                                            <div className={`w-9 h-9 md:w-10 md:h-10 rounded-lg flex flex-col items-center justify-center text-center flex-shrink-0 ${isRToday ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                                <span className="text-[8px] md:text-xs font-bold leading-none uppercase">
                                                     {rDate.toLocaleDateString('en-US', { month: 'short' })}
                                                 </span>
-                                                <span className="text-lg font-bold leading-none">{rDate.getDate()}</span>
+                                                <span className="text-base md:text-lg font-bold leading-none">{rDate.getDate()}</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
+                                                <p className="text-sm font-semibold text-foreground truncate leading-tight">{r.title}</p>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     {r.reminder_time && (
-                                                        <span className="text-xs text-primary flex items-center gap-1">
-                                                            <Clock className="w-3 h-3" />{r.reminder_time.slice(0, 5)}
+                                                        <span className="text-[10px] text-primary flex items-center gap-1 font-medium">
+                                                            <Clock className="w-2.5 h-2.5" />{r.reminder_time.slice(0, 5)}
                                                         </span>
                                                     )}
                                                     {isRToday && (
-                                                        <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">Today</span>
+                                                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold">Today</span>
                                                     )}
-                                                    {r.note && <span className="text-xs text-muted-foreground truncate">{r.note}</span>}
+                                                    {r.note && <span className="text-[10px] text-muted-foreground truncate">{r.note}</span>}
                                                 </div>
                                             </div>
                                             <button onClick={() => handleDeleteReminder(r.id)}
-                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition opacity-0 group-hover:opacity-100">
+                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition md:opacity-0 group-hover:opacity-100">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
@@ -514,9 +514,9 @@ const CalendarPage = () => {
                     </div>
 
                     {/* Monthly Summary */}
-                    <div className="bg-gradient-to-r from-primary/10 via-transparent to-chart-2/10 border border-primary/20 rounded-xl p-6">
-                        <h3 className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wide">Monthly Summary</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="bg-gradient-to-r from-primary/10 via-transparent to-chart-2/10 border border-primary/20 rounded-xl p-5 md:p-6 shadow-sm">
+                        <h3 className="text-[10px] md:text-xs font-semibold text-foreground mb-3 uppercase tracking-wide font-bold">Monthly Summary</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                             {[
                                 'Start completing habits to see your progress here',
                                 'Keep your streak alive by completing habits daily',
@@ -524,14 +524,15 @@ const CalendarPage = () => {
                                 'Focus sessions also earn you XP each day',
                             ].map((tip, i) => (
                                 <div key={i} className="flex items-start gap-2">
-                                    <span className="text-primary mt-0.5">•</span>
-                                    <span className="text-muted-foreground">{tip}</span>
+                                    <span className="text-primary font-bold">•</span>
+                                    <span className="text-muted-foreground leading-relaxed">{tip}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </main>
+
 
             {/* Reminder Modal */}
             {modalOpen && selectedDate && (

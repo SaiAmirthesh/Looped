@@ -112,58 +112,58 @@ const HabitsPage = () => {
   return (
     <div className="flex min-h-screen bg-background">
       <Navigation />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b border-border" style={{ backgroundColor: 'var(--background)' }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-border" style={{ backgroundColor: 'var(--background)' }}>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Daily Habits</h1>
-            <p className="text-sm text-muted-foreground">Track your habits, earn XP, and level up your skills</p>
+            <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Habits</h1>
+            <p className="hidden md:block text-sm text-muted-foreground">Track your habits and earn XP</p>
           </div>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition text-sm font-medium"
+            className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition text-xs md:text-sm font-semibold shadow-sm"
           >
-            <Plus className="w-4 h-4" />
-            New Habit
+            <Plus className="w-3.5 md:w-4 h-3.5 md:h-4" />
+            <span>New Habit</span>
           </button>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="px-4 py-6 md:p-8 space-y-5 md:space-y-6">
           {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <ListChecks className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Total</span>
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1 text-muted-foreground">
+                <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Total</span>
               </div>
-              <div className="text-3xl font-bold text-foreground">{totalHabits}</div>
-              <div className="text-xs text-muted-foreground mt-1">habits created</div>
+              <div className="text-xl md:text-3xl font-bold text-foreground">{totalHabits}</div>
+              <div className="hidden md:block text-xs text-muted-foreground mt-1">habits created</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <SquareCheckBig className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Completed</span>
+            <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1 text-primary">
+                <SquareCheckBig className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Done</span>
               </div>
-              <div className="text-3xl font-bold text-foreground">{completedToday}</div>
-              <div className="text-xs text-muted-foreground mt-1">done today</div>
+              <div className="text-xl md:text-3xl font-bold text-foreground">{completedToday}</div>
+              <div className="hidden md:block text-xs text-muted-foreground mt-1">completed today</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <Flame className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Best Streak</span>
+            <div className="bg-card border border-border rounded-xl p-3 md:p-5 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1 text-orange-500">
+                <Flame className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="text-[10px] md:text-xs uppercase tracking-wider font-bold">Best</span>
               </div>
-              <div className="text-3xl font-bold text-foreground">{longestStreak}</div>
-              <div className="text-xs text-muted-foreground mt-1">days</div>
+              <div className="text-xl md:text-3xl font-bold text-foreground">{longestStreak}</div>
+              <div className="hidden md:block text-xs text-muted-foreground mt-1">day streak</div>
             </div>
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+          <div className="flex gap-1 bg-muted/50 p-1 rounded-lg w-fit">
             {["all", "active", "completed"].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition capitalize ${
+                className={`px-3 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-semibold transition-all capitalize ${
                   filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -173,22 +173,28 @@ const HabitsPage = () => {
           </div>
 
           {/* Habits List */}
-          <div className="space-y-3">
-            {filteredHabits.length === 0 ? (
-              <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center">
-                <CheckSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-foreground font-medium mb-1">No habits here</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {filter === "all" ? "Create your first habit to start leveling up." : `No ${filter} habits right now.`}
-                </p>
-                {filter === "all" && (
-                  <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition">
-                    + Add First Habit
-                  </button>
-                )}
+          {filteredHabits.length === 0 ? (
+            <div className="max-w-md mx-auto mt-8 md:mt-12 bg-card border border-dashed border-border rounded-2xl p-8 md:p-12 text-center shadow-inner">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckSquare className="w-8 h-8 text-primary" />
               </div>
-            ) : (
-              filteredHabits.map((habit) => (
+              <h2 className="text-lg md:text-xl font-bold text-foreground mb-3">No habits here</h2>
+              <p className="text-sm text-muted-foreground mb-8">
+                {filter === "all" ? "Create your first habit to start leveling up." : `No ${filter} habits right now.`}
+              </p>
+              {filter === "all" && (
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:opacity-90 transition shadow-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Your First Habit
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-3 md:space-y-4">
+              {filteredHabits.map((habit) => (
                 <HabitCard
                   key={habit.id}
                   name={habit.name}
@@ -198,11 +204,12 @@ const HabitsPage = () => {
                   onToggle={() => handleToggleHabit(habit.id)}
                   onDelete={() => handleDeleteHabit(habit.id)}
                 />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
+
 
       {/* Add Habit Modal */}
       {showModal && (

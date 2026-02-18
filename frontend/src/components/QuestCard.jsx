@@ -6,6 +6,7 @@ export default function QuestCard({
   xpReward = 50,
   completed = false,
   difficulty = "easy",
+  skill = null,
   progress = 0,
   onToggle,
   onDelete
@@ -50,9 +51,16 @@ export default function QuestCard({
       <p className="text-sm text-muted-foreground mb-3">{description}</p>
 
       <div className="flex justify-between items-center text-sm">
-        <span className={`mt-4 px-2 py-1 rounded-md ${style.bg} ${style.text} ${style.border} border font-medium capitalize`}>
-          {difficulty}
-        </span>
+        <div className="flex items-center gap-2 mt-4 flex-wrap">
+          <span className={`px-2 py-1 rounded-md ${style.bg} ${style.text} ${style.border} border font-medium capitalize text-xs`}>
+            {difficulty}
+          </span>
+          {skill && (
+            <span className="px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-medium text-xs">
+              {skill}
+            </span>
+          )}
+        </div>
 
         <div className="flex gap-2">
           <AnimatePresence mode="wait">

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/database";
+import { useUserProfile } from "../context/UserProfileContext";
 import Navigation from "../components/Navigation";
 import HabitCard from "../components/HabitCard";
 import { Plus, X, Flame, CheckSquare, ListChecks, SquareCheckBig } from "lucide-react";
 
 const HabitsPage = () => {
   const navigate = useNavigate();
+  const { refreshProfile, applyXpToProfile } = useUserProfile() ?? {};
   const [user, setUser] = useState(null);
   const [filter, setFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -79,6 +81,7 @@ const HabitsPage = () => {
     }
     
     if (result.success) {
+      applyXpToProfile?.(habit.completed_today ? -10 : 10); // instant XP bar update
       await fetchHabits(user.id);
     }
     setLoading(false);

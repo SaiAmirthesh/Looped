@@ -33,10 +33,13 @@ const SKILL_DESC = {
 };
 
 const enrichSkills = (rawSkills) => rawSkills.map(skill => {
-    const maxXP = Math.floor(100 * Math.pow(skill.level, 1.5));
-    const progress = maxXP > 0 ? Math.floor((skill.currentXP / maxXP) * 100) : 0;
+    // DB returns snake_case (current_xp); DEFAULT_SKILLS used camelCase (currentXP) — normalise both
+    const currentXP = skill.current_xp ?? skill.currentXP ?? 0;
+    const level = skill.level ?? 1;
+    const maxXP = Math.floor(100 * Math.pow(level, 1.5));
+    const progress = maxXP > 0 ? Math.min(100, Math.floor((currentXP / maxXP) * 100)) : 0;
     const meta = SKILL_META[skill.name] || SKILL_META.Focus;
-    return { ...skill, maxXP, progress, ...meta, description: SKILL_DESC[skill.name] || '' };
+    return { ...skill, currentXP, current_xp: currentXP, level, maxXP, progress, ...meta, description: SKILL_DESC[skill.name] || '' };
 });
 
 const SkillsPage = () => {

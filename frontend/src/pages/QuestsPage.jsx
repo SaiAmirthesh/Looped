@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import * as db from '../lib/database';
+import { useUserProfile } from '../context/UserProfileContext';
 import Navigation from '../components/Navigation';
 import QuestCard from '../components/QuestCard';
 import { Sword, CheckCircle, X, Plus, Trophy } from 'lucide-react';
 
+const SKILLS = ['Focus', 'Learning', 'Health', 'Creativity', 'Confidence', 'Social'];
+
 const QuestsPage = () => {
     const navigate = useNavigate();
+    const { refreshProfile, applyXpToProfile } = useUserProfile() ?? {};
     const [user, setUser] = useState(null);
     const [activeTab, setActiveTab] = useState('active');
     const [showModal, setShowModal] = useState(false);
@@ -68,8 +72,12 @@ const QuestsPage = () => {
         setLoading(true);
         const result = await db.completeQuest(id, user.id);
         
-        if (result.success) {
-            // Refresh quests from DB
+        if (result.success && !result.alreadyDone) {
+            // Instantly update XP bar — no re-fetch race
+            applyXpToProfile?.(result.xpAwarded ?? 0);
+            // Refresh quest list from DB
+            await fetchQuests(user.id);
+        } else if (result.success) {
             await fetchQuests(user.id);
         }
         setLoading(false);
@@ -185,6 +193,7 @@ const QuestsPage = () => {
                                     description={quest.description}
                                     xpReward={quest.xp_reward}
                                     difficulty={quest.difficulty.toLowerCase()}
+                                    skill={quest.skill}
                                     completed={quest.completed}
                                     onToggle={() => handleToggleQuest(quest.id)}
                                     onDelete={() => handleDeleteQuest(quest.id)}
@@ -251,6 +260,19 @@ const QuestsPage = () => {
                                         className="w-full px-4 py-2.5 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                                     />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-2">Skill to Train</label>
+                                <select
+                                    value={newQuest.skill}
+                                    onChange={(e) => setNewQuest({ ...newQuest, skill: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                                >
+                                    {SKILLS.map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-muted-foreground mt-1">XP will be added to this skill on completion</p>
                             </div>
                             <div className="flex gap-3 pt-2">
                                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition">

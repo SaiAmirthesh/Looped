@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import * as db from '../lib/database';
+import { useUserProfile } from '../context/UserProfileContext';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import HabitCard from '../components/HabitCard';
@@ -10,6 +11,7 @@ import { Target, Trophy, Flame, TrendingUp, LogOut, Zap } from 'lucide-react';
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const { refreshProfile, applyXpToProfile } = useUserProfile() ?? {};
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [playerStats, setPlayerStats] = useState({ level: 1, currentXP: 0, maxXP: 100, totalXP: 0 });
@@ -23,10 +25,12 @@ const Dashboard = () => {
         const dataResult = await db.getDashboardData(userId);
         
         if (dataResult.profile) {
+            const level = dataResult.profile.level || 1;
             setPlayerStats({
-                level: dataResult.profile.level || 1,
+                level,
                 currentXP: dataResult.profile.current_xp || 0,
-                maxXP: dataResult.profile.next_level_xp || 100,
+                // next_level_xp is computed by getDashboardData — no dropped column
+                maxXP: dataResult.profile.next_level_xp || Math.floor(100 * Math.pow(level, 1.5)),
                 totalXP: dataResult.profile.total_xp || 0,
             });
         }
@@ -81,13 +85,15 @@ const Dashboard = () => {
         );
         setDailyHabits(updatedHabits);
         
-        // Update background without blocking UI
+        // Update background without blocking UI, then refresh XP bar
         if (habit.completed_today) {
             await db.uncompleteHabit(habitId, user.id);
+            applyXpToProfile?.(-10);
         } else {
             await db.completeHabit(habitId, user.id, 10);
+            applyXpToProfile?.(10);
         }
-    }, [user, dailyHabits]);
+    }, [user, dailyHabits, applyXpToProfile]);
 
     const handleToggleQuest = useCallback(async (questId) => {
         if (!user) return;
@@ -98,13 +104,15 @@ const Dashboard = () => {
         );
         setActiveQuests(updatedQuests);
         
-        // Update background without blocking UI
+        // Update background without blocking UI, then refresh XP bar
         const result = await db.completeQuest(questId, user.id);
         if (!result.success) {
             // Revert on error
             setActiveQuests(activeQuests);
+        } else if (!result.alreadyDone) {
+            applyXpToProfile?.(result.xpAwarded ?? 0);
         }
-    }, [user, activeQuests]);
+    }, [user, activeQuests, applyXpToProfile]);
 
     // Calculate memoized values (move before early returns)
     const habitsCompleteCount = useMemo(() => dailyHabits.filter(h => h.completed_today).length, [dailyHabits]);

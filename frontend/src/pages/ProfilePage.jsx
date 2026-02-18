@@ -17,41 +17,65 @@ const DEFAULT_SKILLS = [
     { name: 'Social', currentXP: 0, level: 1 }
 ];
 
-const DEFAULT_ACHIEVEMENTS = [
-    { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: false },
-    { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: false },
-    { id: 3, title: 'Quest Master', description: 'Completed 10 quests', unlocked: false },
-    { id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill', unlocked: false },
-    { id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight', unlocked: false },
-    { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
-];
 
 const ProfilePage = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [skills, setSkills] = useState([]);
-    const [achievements] = useState(DEFAULT_ACHIEVEMENTS);
+    const [stats, setStats] = useState({ habitsCount: 0, bestStreak: 0, questsCompleted: 0, focusCount: 0 });
 
     // Read from shared context — no local fetch needed
     const { user, profile, updateAvatarUrl } = useUserProfile() ?? {};
 
-    // Fetch skills from database
-    const fetchSkills = useCallback(async (userId) => {
-        const skillsData = await db.getSkills(userId);
-        // Transform snake_case to camelCase for SkillRadarChart
-        const transformedSkills = skillsData.map(s => ({
-            ...s,
-            currentXP: s.current_xp, // Map current_xp to currentXP
-        }));
-        setSkills(transformedSkills);
+    // Fetch skills + habits + quests in parallel — single round-trip batch
+    const fetchProfileData = useCallback(async (userId) => {
+        const [skillsData, habitsData, questsData] = await Promise.all([
+            db.getSkills(userId),
+            db.getHabits(userId),
+            db.getQuests(userId),
+        ]);
+
+        // Skills — map snake_case → camelCase for SkillRadarChart
+        setSkills(skillsData.map(s => ({ ...s, currentXP: s.current_xp })));
+
+        // Stats derived from fetched data — no extra requests
+        const bestStreak = habitsData.reduce((max, h) => Math.max(max, h.longest_streak ?? h.streak ?? 0), 0);
+        const questsCompleted = questsData.filter(q => q.completed).length;
+        setStats({ habitsCount: habitsData.length, bestStreak, questsCompleted });
     }, []);
 
+    // Compute achievement unlock state from real data — no extra fetches
+    const achievements = useMemo(() => [
+        {
+            id: 1, title: 'First Steps', description: 'Created your first habit',
+            unlocked: stats.habitsCount >= 1,
+        },
+        {
+            id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak',
+            unlocked: stats.bestStreak >= 7,
+        },
+        {
+            id: 3, title: 'Quest Master', description: 'Completed 10 quests',
+            unlocked: stats.questsCompleted >= 10,
+        },
+        {
+            id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill',
+            unlocked: skills.some(s => (s.level ?? 1) >= 5),
+        },
+        {
+            id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight',
+            unlocked: stats.bestStreak >= 30,
+        },
+        {
+            id: 6, title: 'XP Hunter', description: 'Earned 1,000 total XP',
+            unlocked: (profile?.total_xp ?? 0) >= 1000,
+        },
+    ], [stats, skills, profile]);
+
     useEffect(() => {
-        if (user) {
-            fetchSkills(user.id);
-        }
-    }, [user?.id, fetchSkills]);
+        if (user) fetchProfileData(user.id);
+    }, [user?.id, fetchProfileData]);
 
     const avatarUrl = profile?.avatar_url ?? null;
     const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Adventurer';
@@ -157,7 +181,7 @@ const ProfilePage = () => {
                                 </p>
                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full">
                                     <Trophy className="w-3.5 h-3.5 text-primary" />
-                                    <span className="text-xs font-semibold text-primary">Level {playerStats.level} Hunter</span>
+                                    <span className="text-xs font-semibold text-primary">Level {playerStats.level}</span>
                                 </div>
                                 {uploading && <p className="text-xs text-muted-foreground mt-2">Uploading photo...</p>}
                             </div>
@@ -196,8 +220,8 @@ const ProfilePage = () => {
                             <div className="grid grid-cols-3 gap-4">
                                 {[
                                     { label: 'Total XP', value: playerStats.totalXP.toLocaleString(), icon: Trophy, color: 'text-primary', bg: 'bg-primary/10' },
-                                    { label: 'Habits Done', value: '0', icon: Target, color: 'text-chart-2', bg: 'bg-chart-2/10' },
-                                    { label: 'Best Streak', value: '0 days', icon: Flame, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+                                    { label: 'Habits Created', value: stats.habitsCount.toString(), icon: Target, color: 'text-chart-2', bg: 'bg-chart-2/10' },
+                                    { label: 'Best Streak', value: `${stats.bestStreak}d`, icon: Flame, color: 'text-orange-500', bg: 'bg-orange-500/10' },
                                 ].map(stat => {
                                     const Icon = stat.icon;
                                     return (

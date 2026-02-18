@@ -21,11 +21,9 @@ const FocusPage = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { navigate('/login'); return; }
             setUser(session.user);
-            // Fetch sessions completed today only once on mount
-            const today = new Date().toISOString().split('T')[0];
-            const sessions = await db.getFocusSessions(session.user.id);
-            const todaySessions = sessions.filter(s => s.completed_at && s.completed_at.split('T')[0] === today);
-            setSessionsCompleted(todaySessions.length);
+            // Single COUNT query — no data transfer
+            const count = await db.getTodayFocusCount(session.user.id);
+            setSessionsCompleted(count);
         };
         checkUser();
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -40,7 +38,8 @@ const FocusPage = () => {
         if (isRunning) {
             // Create session on start (once)
             if (!currentSessionId && user) {
-                db.createFocusSession(user.id, sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15)
+                const duration = sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15;
+                db.createFocusSession(user.id, duration, sessionType)
                     .then(session => {
                         if (session) setCurrentSessionId(session.id);
                     });
@@ -52,7 +51,8 @@ const FocusPage = () => {
                         setIsRunning(false);
                         // Complete the focus session and award XP if it's a focus session
                         if (sessionType === 'focus' && currentSessionId && user) {
-                            await db.completeFocusSession(currentSessionId, user.id);
+                            const duration = sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15;
+                            await db.completeFocusSession(currentSessionId, user.id, duration);
                             setSessionsCompleted(prev => prev + 1);
                         }
                         setCurrentSessionId(null);

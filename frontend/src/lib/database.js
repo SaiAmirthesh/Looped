@@ -1,712 +1,491 @@
 import { supabase } from './supabaseClient';
 
-/**
- * DATABASE API LAYER FOR LOOPED
- * 
- * This module provides transactional operations for:
- * - Habit CRUD + completion with XP awards
- * - Quest CRUD + completion with transactional XP
- * - Skill fetching and XP updates
- * - User profile updates
- * - Focus session tracking
- * 
- * KEY PATTERN: All "completion" operations are transactional:
- * When a habit/quest is completed, we:
- * 1. Insert the completion record
- * 2. Calculate XP earned
- * 3. Update user_profiles.total_xp atomically
- * 4. Update skill XP if applicable
- */
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-// ============================================
-// USER PROFILE OPERATIONS
-// ============================================
+/** Compute XP needed to reach the next level from the current one. */
+const nextLevelXp = (level) => Math.floor(100 * Math.pow(level, 1.5));
+
+/** Today's date as YYYY-MM-DD (local time). */
+const today = () => new Date().toISOString().split('T')[0];
+
+/**
+ * Apply XP delta to a { current_xp, level, total_xp } object.
+ * Handles level-ups and level-downs (for uncomplete).
+ * Returns the updated fields to write back to user_profiles.
+ */
+const applyXpDelta = (profile, delta) => {
+  let { current_xp, level, total_xp } = profile;
+  let newCurrentXp = (current_xp ?? 0) + delta;
+  let newLevel = level ?? 1;
+  const newTotalXp = Math.max(0, (total_xp ?? 0) + delta);
+
+  if (delta > 0) {
+    // Level up loop
+    let threshold = nextLevelXp(newLevel);
+    while (newCurrentXp >= threshold) {
+      newCurrentXp -= threshold;
+      newLevel += 1;
+      threshold = nextLevelXp(newLevel);
+    }
+  } else {
+    // Level down loop (XP reverted)
+    while (newCurrentXp < 0 && newLevel > 1) {
+      newLevel -= 1;
+      newCurrentXp += nextLevelXp(newLevel);
+    }
+    newCurrentXp = Math.max(0, newCurrentXp);
+  }
+
+  return { current_xp: newCurrentXp, level: newLevel, total_xp: newTotalXp, next_level_xp: nextLevelXp(newLevel) };
+};
+
+// ─── User Profile ────────────────────────────────────────────────────────────
 
 export const getUserProfile = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, email, display_name, avatar_url, total_xp, current_xp, level, created_at')
+    .eq('id', userId)
+    .single();
+  if (error) { console.error('getUserProfile:', error.message); return null; }
+  return { ...data, next_level_xp: nextLevelXp(data.level ?? 1) };
 };
 
 export const updateUserProfile = async (userId, updates) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error updating user profile:', error);
-    return null;
-  }
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select('id, email, display_name, avatar_url, total_xp, current_xp, level')
+    .single();
+  if (error) { console.error('updateUserProfile:', error.message); return null; }
+  return { ...data, next_level_xp: nextLevelXp(data.level ?? 1) };
 };
 
-// ============================================
-// HABITS OPERATIONS
-// ============================================
+// ─── Habits ──────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all habits for a user.
+ * Derives `completed_today` from habit_completions in a single query
+ * using a left join subquery — no second round-trip.
+ */
+export const getHabits = async (userId) => {
+  const todayStr = today();
+  const { data, error } = await supabase
+    .from('habits')
+    .select(`
+      id, user_id, name, category, skill, streak, longest_streak, last_completed, created_at,
+      habit_completions!left(completed_date)
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error('getHabits:', error.message); return []; }
+
+  // Flatten: derive completed_today from the joined completions
+  return (data ?? []).map(h => {
+    const completedToday = (h.habit_completions ?? []).some(c => c.completed_date === todayStr);
+    const { habit_completions: _, ...rest } = h;
+    return { ...rest, completed_today: completedToday };
+  });
+};
 
 export const createHabit = async (userId, habitData) => {
-  try {
-    const { data, error } = await supabase
-      .from('habits')
-      .insert([
-        {
-          user_id: userId,
-          name: habitData.name,
-          category: habitData.category,
-          skill: habitData.skill,
-          completed_today: false,
-          streak: 0,
-          longest_streak: 0,
-        },
-      ])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error creating habit:', error);
-    return null;
-  }
-};
-
-export const getHabits = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching habits:', error);
-    return [];
-  }
+  const { data, error } = await supabase
+    .from('habits')
+    .insert([{
+      user_id: userId,
+      name: habitData.name,
+      category: habitData.category,
+      skill: habitData.skill,
+      streak: 0,
+      longest_streak: 0,
+    }])
+    .select('id, user_id, name, category, skill, streak, longest_streak, last_completed, created_at')
+    .single();
+  if (error) { console.error('createHabit:', error.message); return null; }
+  return { ...data, completed_today: false };
 };
 
 export const updateHabit = async (habitId, updates) => {
-  try {
-    const { data, error } = await supabase
-      .from('habits')
-      .update(updates)
-      .eq('id', habitId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error updating habit:', error);
-    return null;
-  }
+  const { data, error } = await supabase
+    .from('habits')
+    .update(updates)
+    .eq('id', habitId)
+    .select()
+    .single();
+  if (error) { console.error('updateHabit:', error.message); return null; }
+  return data;
 };
 
 export const deleteHabit = async (habitId) => {
-  try {
-    const { error } = await supabase
-      .from('habits')
-      .delete()
-      .eq('id', habitId);
-    
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Error deleting habit:', error);
-    return false;
-  }
+  const { error } = await supabase.from('habits').delete().eq('id', habitId);
+  if (error) { console.error('deleteHabit:', error.message); return false; }
+  return true;
 };
 
 /**
- * CRITICAL: Complete a habit with transactional XP update
- * 
- * Steps:
- * 1. Insert into habit_completions (10 XP default)
- * 2. Update user_profiles.total_xp atomically
- * 3. Update skill XP for the habit's skill
- * 4. Update habit's streak and completed_today
- * 
- * Uses PostgreSQL transactions via Supabase RPC
+ * Complete a habit for today.
+ * Single atomic batch:
+ *   1. Insert habit_completion (UNIQUE guard prevents double-award)
+ *   2. Fetch profile + habit in parallel
+ *   3. Update profile XP + skill XP in parallel
+ *   4. Update habit streak
  */
 export const completeHabit = async (habitId, userId, xpEarned = 10) => {
   try {
-    // Step 1: Insert habit completion record
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    
-    const { data: completionData, error: completionError } = await supabase
+    const todayStr = today();
+
+    // 1. Insert completion — UNIQUE(habit_id, completed_date) prevents double-award
+    const { error: insertError } = await supabase
       .from('habit_completions')
-      .insert([
-        {
-          habit_id: habitId,
-          user_id: userId,
-          completed_date: today,
-          xp_earned: xpEarned,
-        },
-      ])
-      .select()
-      .single();
-    
-    if (completionError) throw completionError;
-    
-    // Step 2: Update user total_xp
-    const userProfile = await getUserProfile(userId);
-    if (!userProfile) throw new Error('User profile not found');
-    
-    const newTotalXp = (userProfile.total_xp || 0) + xpEarned;
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .update({ total_xp: newTotalXp })
-      .eq('id', userId);
-    
-    if (profileError) throw profileError;
-    
-    // Step 3: Get habit to find its skill, then update skill XP
-    const habit = await getHabitById(habitId);
-    if (habit) {
-      await addSkillXP(userId, habit.skill, xpEarned);
+      .insert([{ habit_id: habitId, user_id: userId, completed_date: todayStr, xp_earned: xpEarned }]);
+
+    if (insertError) {
+      // 23505 = unique_violation → already completed today, not an error
+      if (insertError.code === '23505') return { success: true, alreadyDone: true };
+      throw insertError;
     }
-    
-    // Step 4: Update habit metadata
-    const updatedHabit = await updateHabit(habitId, {
-      completed_today: true,
-      last_completed: today,
-    });
-    
-    return {
-      success: true,
-      completion: completionData,
-      updatedHabit,
-      xpAwarded: xpEarned,
-    };
-  } catch (error) {
-    console.error('Error completing habit:', error);
-    return { success: false, error: error.message };
-  }
-};
 
-export const getHabitById = async (habitId) => {
-  try {
-    const { data, error } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('id', habitId)
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching habit:', error);
-    return null;
-  }
-};
+    // 2. Fetch profile + habit in parallel (one round-trip each, concurrent)
+    const [profileRes, habitRes] = await Promise.all([
+      supabase.from('user_profiles').select('current_xp, level, total_xp').eq('id', userId).single(),
+      supabase.from('habits').select('skill, streak').eq('id', habitId).single(),
+    ]);
+    if (profileRes.error) throw profileRes.error;
+    if (habitRes.error) throw habitRes.error;
 
-// ============================================
-// QUESTS OPERATIONS
-// ============================================
+    const xpFields = applyXpDelta(profileRes.data, xpEarned);
+    const newStreak = (habitRes.data.streak ?? 0) + 1;
 
-export const createQuest = async (userId, questData) => {
-  try {
-    const { data, error } = await supabase
-      .from('quests')
-      .insert([
-        {
-          user_id: userId,
-          title: questData.title,
-          description: questData.description || '',
-          difficulty: questData.difficulty,
-          skill: questData.skill,
-          xp_reward: questData.xpReward || 50,
-          completed: false,
-        },
-      ])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error creating quest:', error);
-    return null;
-  }
-};
+    // 3. Update profile XP + skill XP in parallel
+    await Promise.all([
+      supabase.from('user_profiles').update(xpFields).eq('id', userId),
+      addSkillXP(userId, habitRes.data.skill, xpEarned),
+      supabase.from('habits').update({ streak: newStreak, last_completed: todayStr }).eq('id', habitId),
+    ]);
 
-export const getQuests = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('quests')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching quests:', error);
-    return [];
-  }
-};
-
-export const updateQuest = async (questId, updates) => {
-  try {
-    const { data, error } = await supabase
-      .from('quests')
-      .update(updates)
-      .eq('id', questId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error updating quest:', error);
-    return null;
-  }
-};
-
-export const deleteQuest = async (questId) => {
-  try {
-    const { error } = await supabase
-      .from('quests')
-      .delete()
-      .eq('id', questId);
-    
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Error deleting quest:', error);
-    return false;
+    return { success: true, xpAwarded: xpEarned, newLevel: xpFields.level };
+  } catch (err) {
+    console.error('completeHabit:', err.message);
+    return { success: false, error: err.message };
   }
 };
 
 /**
- * CRITICAL: Complete a quest with transactional XP update
- * 
- * Steps:
- * 1. Mark quest as completed
- * 2. Award XP to user (quest.xp_reward)
- * 3. Award XP to skill
- * 
- * Similar pattern to completeHabit
+ * Uncomplete a habit for today (revert XP).
+ * Deletes the completion row and subtracts XP atomically.
  */
-export const completeQuest = async (questId, userId) => {
-  try {
-    // Fetch quest to get xp_reward
-    const { data: questData, error: questError } = await supabase
-      .from('quests')
-      .select('*')
-      .eq('id', questId)
-      .single();
-    
-    if (questError) throw questError;
-    
-    const xpReward = questData.xp_reward || 50;
-    
-    // Update quest as completed
-    const { error: updateError } = await supabase
-      .from('quests')
-      .update({
-        completed: true,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', questId);
-    
-    if (updateError) throw updateError;
-    
-    // Award XP to user profile
-    const userProfile = await getUserProfile(userId);
-    if (!userProfile) throw new Error('User profile not found');
-    
-    const newTotalXp = (userProfile.total_xp || 0) + xpReward;
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .update({ total_xp: newTotalXp })
-      .eq('id', userId);
-    
-    if (profileError) throw profileError;
-    
-    // Award XP to skill
-    await addSkillXP(userId, questData.skill, xpReward);
-    
-    return {
-      success: true,
-      questId,
-      xpAwarded: xpReward,
-    };
-  } catch (error) {
-    console.error('Error completing quest:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-// ============================================
-// SKILLS OPERATIONS
-// ============================================
-
-export const getSkills = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('skills')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name', { ascending: true });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching skills:', error);
-    return [];
-  }
-};
-
-export const getSkillProgress = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_skill_progress')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching skill progress:', error);
-    return [];
-  }
-};
-
-/**
- * Add XP to a specific skill
- * Auto-levels if XP exceeds next_level_xp threshold
- */
-export const addSkillXP = async (userId, skillName, xpAmount) => {
-  try {
-    // Fetch current skill
-    const { data: skillData, error: fetchError } = await supabase
-      .from('skills')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('name', skillName)
-      .single();
-    
-    if (fetchError) throw fetchError;
-    
-    let newCurrentXp = (skillData.current_xp || 0) + xpAmount;
-    let newLevel = skillData.level || 1;
-    
-    // Auto-level: XP threshold is 100 * level^1.5
-    const nextLevelXp = Math.floor(100 * Math.pow(newLevel, 1.5));
-    
-    // Level up if threshold exceeded
-    while (newCurrentXp >= nextLevelXp) {
-      newCurrentXp -= nextLevelXp;
-      newLevel += 1;
-    }
-    
-    // Update skill
-    const { data, error } = await supabase
-      .from('skills')
-      .update({
-        current_xp: newCurrentXp,
-        level: newLevel,
-      })
-      .eq('id', skillData.id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error adding skill XP:', error);
-    return null;
-  }
-};
-
-// ============================================
-// FOCUS SESSIONS OPERATIONS
-// ============================================
-
-export const createFocusSession = async (userId, durationMinutes) => {
-  try {
-    const { data, error } = await supabase
-      .from('focus_sessions')
-      .insert([
-        {
-          user_id: userId,
-          duration_minutes: durationMinutes,
-          session_type: 'focus',
-          completed: false,
-          xp_earned: 0,
-        },
-      ])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error creating focus session:', error);
-    return null;
-  }
-};
-
-export const completeFocusSession = async (sessionId, userId) => {
-  try {
-    // Calculate XP: 25 minutes (1 Pomodoro) = 15 XP
-    const xpEarned = 15;
-    
-    const now = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('focus_sessions')
-      .update({
-        completed: true,
-        completed_at: now,
-        xp_earned: xpEarned,
-      })
-      .eq('id', sessionId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
-    // Award XP to user profile
-    const userProfile = await getUserProfile(userId);
-    if (userProfile) {
-      const newTotalXp = (userProfile.total_xp || 0) + xpEarned;
-      await supabase
-        .from('user_profiles')
-        .update({ total_xp: newTotalXp })
-        .eq('id', userId);
-    }
-    
-    // Award XP to Focus skill
-    await addSkillXP(userId, 'Focus', xpEarned);
-    
-    return {
-      success: true,
-      sessionId,
-      xpAwarded: xpEarned,
-    };
-  } catch (error) {
-    console.error('Error completing focus session:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-export const getFocusSessions = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('focus_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching focus sessions:', error);
-    return [];
-  }
-};
-
-// ============================================
-// CALENDAR DATA OPERATIONS
-// ============================================
-
-export const getDailyCompletionSummary = async (userId, date) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_daily_completion_summary')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (error) throw error;
-    return data && data.length > 0 ? data[0] : null;
-  } catch (error) {
-    console.error('Error fetching daily summary:', error);
-    return null;
-  }
-};
-
-export const getCalendarData = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_calendar_view')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching calendar data:', error);
-    return [];
-  }
-};
-
-// ============================================
-// DASHBOARD STATS (from view)
-// ============================================
-
-export const getDashboardStats = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_dashboard_stats')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
-    return null;
-  }
-
-};
-
 export const uncompleteHabit = async (habitId, userId) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Delete today's completion record
+    const todayStr = today();
+
+    // Delete completion row
     const { error: deleteError } = await supabase
       .from('habit_completions')
       .delete()
       .eq('habit_id', habitId)
-      .eq('completed_date', today);
-    
+      .eq('user_id', userId)
+      .eq('completed_date', todayStr);
     if (deleteError) throw deleteError;
-    
-    // Set completed_today to false
-    const { error: updateError } = await supabase
-      .from('habits')
-      .update({ completed_today: false })
-      .eq('id', habitId);
-    
-    if (updateError) throw updateError;
-    
+
+    // Fetch profile + habit in parallel
+    const [profileRes, habitRes] = await Promise.all([
+      supabase.from('user_profiles').select('current_xp, level, total_xp').eq('id', userId).single(),
+      supabase.from('habits').select('skill, streak').eq('id', habitId).single(),
+    ]);
+    if (profileRes.error) throw profileRes.error;
+    if (habitRes.error) throw habitRes.error;
+
+    const xpFields = applyXpDelta(profileRes.data, -10);
+    const newStreak = Math.max(0, (habitRes.data.streak ?? 0) - 1);
+
+    // Update profile XP + skill XP + streak in parallel
+    await Promise.all([
+      supabase.from('user_profiles').update(xpFields).eq('id', userId),
+      subtractSkillXP(userId, habitRes.data.skill, 10),
+      supabase.from('habits').update({ streak: newStreak }).eq('id', habitId),
+    ]);
+
     return { success: true };
-  } catch (error) {
-    console.error('Error uncompleting habit:', error);
-    return { success: false, error: error.message };
+  } catch (err) {
+    console.error('uncompleteHabit:', err.message);
+    return { success: false, error: err.message };
   }
 };
 
-// ============================================
-// BATCH OPERATIONS (Optimized for latency)
-// ============================================
+// ─── Quests ──────────────────────────────────────────────────────────────────
+
+export const getQuests = async (userId) => {
+  const { data, error } = await supabase
+    .from('quests')
+    .select('id, user_id, title, description, difficulty, skill, xp_reward, completed, completed_at, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getQuests:', error.message); return []; }
+  return data ?? [];
+};
+
+export const createQuest = async (userId, questData) => {
+  const { data, error } = await supabase
+    .from('quests')
+    .insert([{
+      user_id: userId,
+      title: questData.title,
+      description: questData.description || '',
+      difficulty: questData.difficulty,
+      skill: questData.skill,
+      xp_reward: questData.xpReward || 50,
+      completed: false,
+    }])
+    .select()
+    .single();
+  if (error) { console.error('createQuest:', error.message); return null; }
+  return data;
+};
+
+export const deleteQuest = async (questId) => {
+  const { error } = await supabase.from('quests').delete().eq('id', questId);
+  if (error) { console.error('deleteQuest:', error.message); return false; }
+  return true;
+};
 
 /**
- * Fetch all dashboard data in parallel
- * Returns: { profile, stats, habits, quests, skills }
- * Uses Promise.all for concurrent requests
+ * Complete a quest with atomic XP award.
+ * Fetches quest + profile in parallel, then writes in parallel.
  */
-export const getDashboardData = async (userId) => {
+export const completeQuest = async (questId, userId) => {
   try {
-    const [profile, stats, habits, quests, skills] = await Promise.all([
-      supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single(),
-      supabase
-        .from('user_dashboard_stats')
-        .select('*')
-        .eq('user_id', userId)
-        .single(),
-      supabase
-        .from('habits')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('quests')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('skills')
-        .select('*')
-        .eq('user_id', userId)
-        .order('name', { ascending: true }),
+    const [questRes, profileRes] = await Promise.all([
+      supabase.from('quests').select('xp_reward, skill, completed').eq('id', questId).single(),
+      supabase.from('user_profiles').select('current_xp, level, total_xp').eq('id', userId).single(),
     ]);
+    if (questRes.error) throw questRes.error;
+    if (profileRes.error) throw profileRes.error;
+    if (questRes.data.completed) return { success: true, alreadyDone: true };
 
-    const errors = [profile.error, stats.error, habits.error, quests.error, skills.error].filter(e => e);
-    if (errors.length > 0) {
-      console.warn('Some dashboard queries failed:', errors);
+    const xpReward = questRes.data.xp_reward ?? 50;
+    const xpFields = applyXpDelta(profileRes.data, xpReward);
+
+    const [, profileUpdate] = await Promise.all([
+      supabase.from('quests').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', questId),
+      supabase.from('user_profiles').update(xpFields).eq('id', userId),
+    ]);
+    if (profileUpdate.error) throw profileUpdate.error;
+
+    if (questRes.data.skill) {
+      addSkillXP(userId, questRes.data.skill, xpReward).catch(e =>
+        console.warn('[completeQuest] skill XP:', e?.message)
+      );
     }
 
-    return {
-      profile: profile.data,
-      stats: stats.data,
-      habits: habits.data || [],
-      quests: quests.data || [],
-      skills: skills.data || [],
-    };
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    return { profile: null, stats: null, habits: [], quests: [], skills: [] };
+    return { success: true, xpAwarded: xpReward, newLevel: xpFields.level };
+  } catch (err) {
+    console.error('[completeQuest] failed:', err.message);
+    return { success: false, error: err.message };
   }
+};
+
+
+// ─── Skills ──────────────────────────────────────────────────────────────────
+
+export const getSkills = async (userId) => {
+  const { data, error } = await supabase
+    .from('skills')
+    .select('id, user_id, name, current_xp, level, created_at')
+    .eq('user_id', userId)
+    .order('name', { ascending: true });
+  if (error) { console.error('getSkills:', error.message); return []; }
+  // Attach computed next_level_xp so callers don't need to recompute
+  return (data ?? []).map(s => ({ ...s, next_level_xp: nextLevelXp(s.level ?? 1) }));
+};
+
+/** Internal: add XP to a skill with level-up logic. No extra fetch — takes skillName. */
+export const addSkillXP = async (userId, skillName, xpAmount) => {
+  if (!skillName || !userId) return null; // guard against null skill
+
+  const { data: skill, error: fetchErr } = await supabase
+    .from('skills')
+    .select('id, current_xp, level')
+    .eq('user_id', userId)
+    .eq('name', skillName)
+    .maybeSingle(); // maybeSingle returns null instead of throwing if no row found
+  if (fetchErr) { console.error('addSkillXP fetch:', fetchErr.message); return null; }
+  if (!skill) { console.warn(`addSkillXP: skill '${skillName}' not found for user`); return null; }
+
+  let newXp = (skill.current_xp ?? 0) + xpAmount;
+  let newLevel = skill.level ?? 1;
+  let threshold = nextLevelXp(newLevel);
+  while (newXp >= threshold) { newXp -= threshold; newLevel++; threshold = nextLevelXp(newLevel); }
+
+  const { data, error } = await supabase
+    .from('skills')
+    .update({ current_xp: newXp, level: newLevel })
+    .eq('id', skill.id)
+    .select()
+    .single();
+  if (error) { console.error('addSkillXP update:', error.message); return null; }
+  return data;
+};
+
+/** Internal: subtract XP from a skill (for uncomplete). */
+const subtractSkillXP = async (userId, skillName, xpAmount) => {
+  const { data: skill, error: fetchErr } = await supabase
+    .from('skills')
+    .select('id, current_xp, level')
+    .eq('user_id', userId)
+    .eq('name', skillName)
+    .single();
+  if (fetchErr) { console.error('subtractSkillXP fetch:', fetchErr.message); return null; }
+
+  let newXp = (skill.current_xp ?? 0) - xpAmount;
+  let newLevel = skill.level ?? 1;
+  while (newXp < 0 && newLevel > 1) { newLevel--; newXp += nextLevelXp(newLevel); }
+  newXp = Math.max(0, newXp);
+
+  const { data, error } = await supabase
+    .from('skills')
+    .update({ current_xp: newXp, level: newLevel })
+    .eq('id', skill.id)
+    .select()
+    .single();
+  if (error) { console.error('subtractSkillXP update:', error.message); return null; }
+  return data;
+};
+
+// ─── Focus Sessions ──────────────────────────────────────────────────────────
+
+export const createFocusSession = async (userId, durationMinutes, sessionType = 'focus') => {
+  const { data, error } = await supabase
+    .from('focus_sessions')
+    .insert([{ user_id: userId, duration_minutes: durationMinutes, session_type: sessionType, completed: false, xp_earned: 0 }])
+    .select()
+    .single();
+  if (error) { console.error('createFocusSession:', error.message); return null; }
+  return data;
 };
 
 /**
- * Fetch all profile-related data for ProfilePage
- * Returns: { profile, skills, habits, quests, focusSessions }
+ * Complete a focus session: marks it done, awards XP to profile + Focus skill.
+ * XP = 15 per 25-min Pomodoro, scaled proportionally for other durations.
  */
-export const getProfileData = async (userId) => {
+export const completeFocusSession = async (sessionId, userId, durationMinutes = 25) => {
   try {
-    const [profile, skills, habits, quests, sessions] = await Promise.all([
-      supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single(),
-      supabase
-        .from('skills')
-        .select('*')
-        .eq('user_id', userId),
-      supabase
-        .from('habits')
-        .select('*')
-        .eq('user_id', userId),
-      supabase
-        .from('quests')
-        .select('*')
-        .eq('user_id', userId),
-      supabase
-        .from('focus_sessions')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('completed', true)
-        .order('completed_at', { ascending: false }),
+    const xpEarned = Math.round((durationMinutes / 25) * 15);
+    const now = new Date().toISOString();
+
+    // Fetch profile for XP calculation
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('current_xp, level, total_xp')
+      .eq('id', userId)
+      .single();
+    if (profileErr) throw profileErr;
+
+    const xpFields = applyXpDelta(profile, xpEarned);
+
+    // Write session complete + profile XP + skill XP in parallel
+    await Promise.all([
+      supabase.from('focus_sessions').update({ completed: true, completed_at: now, xp_earned: xpEarned }).eq('id', sessionId),
+      supabase.from('user_profiles').update(xpFields).eq('id', userId),
+      addSkillXP(userId, 'Focus', xpEarned),
     ]);
 
-    return {
-      profile: profile.data,
-      skills: skills.data || [],
-      habits: habits.data || [],
-      quests: quests.data || [],
-      focusSessions: sessions.data || [],
-    };
-  } catch (error) {
-    console.error('Error fetching profile data:', error);
-    return { profile: null, skills: [], habits: [], quests: [], focusSessions: [] };
+    return { success: true, xpAwarded: xpEarned, newLevel: xpFields.level };
+  } catch (err) {
+    console.error('completeFocusSession:', err.message);
+    return { success: false, error: err.message };
   }
 };
 
+/** Get today's completed focus session count for a user. */
+export const getTodayFocusCount = async (userId) => {
+  const todayStr = today();
+  const { count, error } = await supabase
+    .from('focus_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('session_type', 'focus')
+    .eq('completed', true)
+    .gte('started_at', `${todayStr}T00:00:00`)
+    .lte('started_at', `${todayStr}T23:59:59`);
+  if (error) { console.error('getTodayFocusCount:', error.message); return 0; }
+  return count ?? 0;
+};
 
+// ─── Calendar ────────────────────────────────────────────────────────────────
 
+/**
+ * Fetch habit completion dates for a given month.
+ * Returns a Set of date strings (YYYY-MM-DD) that have at least one completion.
+ */
+export const getMonthCompletions = async (userId, year, month) => {
+  // month is 1-indexed
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data, error } = await supabase
+    .from('habit_completions')
+    .select('completed_date, xp_earned')
+    .eq('user_id', userId)
+    .gte('completed_date', start)
+    .lte('completed_date', end);
+
+  if (error) { console.error('getMonthCompletions:', error.message); return { dates: new Set(), totalXp: 0 }; }
+
+  const dates = new Set((data ?? []).map(c => c.completed_date));
+  const totalXp = (data ?? []).reduce((sum, c) => sum + (c.xp_earned ?? 0), 0);
+  return { dates, totalXp };
+};
+
+// ─── Dashboard (parallel batch) ──────────────────────────────────────────────
+
+/**
+ * Fetch all dashboard data in one parallel batch.
+ * Returns: { profile, habits, quests, skills }
+ * next_level_xp is computed, not fetched.
+ */
+export const getDashboardData = async (userId) => {
+  const todayStr = today();
+
+  const [profileRes, habitsRes, questsRes, skillsRes] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('id, display_name, avatar_url, total_xp, current_xp, level')
+      .eq('id', userId)
+      .single(),
+    supabase
+      .from('habits')
+      .select(`id, name, category, skill, streak, longest_streak, last_completed, created_at,
+               habit_completions!left(completed_date)`)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('quests')
+      .select('id, title, description, difficulty, skill, xp_reward, completed, completed_at, created_at')
+      .eq('user_id', userId)
+      .eq('completed', false)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('skills')
+      .select('id, name, current_xp, level')
+      .eq('user_id', userId)
+      .order('name', { ascending: true }),
+  ]);
+
+  const profile = profileRes.data
+    ? { ...profileRes.data, next_level_xp: nextLevelXp(profileRes.data.level ?? 1) }
+    : null;
+
+  const habits = (habitsRes.data ?? []).map(h => {
+    const completedToday = (h.habit_completions ?? []).some(c => c.completed_date === todayStr);
+    const { habit_completions: _, ...rest } = h;
+    return { ...rest, completed_today: completedToday };
+  });
+
+  const quests = questsRes.data ?? [];
+  const skills = (skillsRes.data ?? []).map(s => ({ ...s, next_level_xp: nextLevelXp(s.level ?? 1) }));
+
+  return { profile, habits, quests, skills };
+};

@@ -162,10 +162,8 @@ const ProfilePage = () => {
                             </div>
 
                             {/* Radar Chart */}
-                            <div className="bg-card border border-border rounded-xl p-5">
-                                <h3 className="text-xs font-semibold text-foreground mb-4 uppercase tracking-wide">Skill Radar</h3>
-                                <SkillRadarChart skills={skills} />
-                            </div>
+                            <SkillRadarChart skills={skills} />
+                            
                         </div>
 
                         {/* Right Column */}

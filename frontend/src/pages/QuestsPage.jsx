@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
 import QuestCard from '../components/QuestCard';
 import { Sword, CheckCircle, X, Plus } from 'lucide-react';
-import { getData, setData, generateKey } from '../lib/storage';
 
 const QuestsPage = () => {
     const navigate = useNavigate();
@@ -28,14 +27,7 @@ const QuestsPage = () => {
                 navigate('/login');
                 return;
             }
-
-            const userId = session.user.id;
             setUser(session.user);
-
-            const storageKey = generateKey(userId, 'quests');
-            const savedQuests = getData(storageKey, []);
-
-            setQuests(savedQuests);
         };
 
         checkUser();
@@ -50,76 +42,6 @@ const QuestsPage = () => {
 
         return () => subscription?.unsubscribe();
     }, [navigate]);
-
-    useEffect(() => {
-        if (user) {
-            const storageKey = generateKey(user.id, 'quests');
-            setData(storageKey, quests);
-        }
-    }, [quests, user]);
-
-    const addXP = (amount) => {
-        if (!user) return;
-
-        const xpKey = generateKey(user.id, 'xp');
-        const currentXP = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-
-        const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
-
-        const newCurrentXP = currentXP.currentXP + amount;
-        const xpForLevelUp = currentNextLevelXP;
-
-        let newLevel = currentXP.level;
-        let finalCurrentXP = newCurrentXP;
-        let newNextLevelXP = currentNextLevelXP;
-
-        if (newCurrentXP >= xpForLevelUp) {
-            newLevel += 1;
-            finalCurrentXP = newCurrentXP - xpForLevelUp;
-            newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
-        }
-
-        const updatedXP = {
-            totalXP: Math.max(0, currentXP.totalXP + amount),
-            level: Math.max(1, newLevel),
-            currentXP: Math.max(0, finalCurrentXP),
-            nextLevelXP: newNextLevelXP
-        };
-
-        setData(xpKey, updatedXP);
-    };
-
-    const addSkillXP = (skillName, amount) => {
-        if (!user) return;
-
-        const skillsKey = generateKey(user.id, 'skills');
-        const defaultSkills = [
-            { name: 'Focus', currentXP: 0, level: 1 },
-            { name: 'Learning', currentXP: 0, level: 1 },
-            { name: 'Health', currentXP: 0, level: 1 },
-            { name: 'Creativity', currentXP: 0, level: 1 },
-            { name: 'Confidence', currentXP: 0, level: 1 },
-            { name: 'Social', currentXP: 0, level: 1 }
-        ];
-        let skills = getData(skillsKey, defaultSkills);
-
-        skills = skills.map(skill => {
-            if (skill.name === skillName) {
-                const newXP = skill.currentXP + amount;
-                const nextLevelXP = Math.floor(100 * Math.pow(skill.level, 1.5));
-                const levelUp = newXP >= nextLevelXP;
-
-                return {
-                    ...skill,
-                    currentXP: levelUp ? newXP - nextLevelXP : newXP,
-                    level: levelUp ? skill.level + 1 : skill.level
-                };
-            }
-            return skill;
-        });
-
-        setData(skillsKey, skills);
-    };
 
     const handleAddQuest = (e) => {
         e.preventDefault();
@@ -143,10 +65,6 @@ const QuestsPage = () => {
     const handleToggleQuest = (id) => {
         setQuests(quests.map(quest => {
             if (quest.id === id) {
-                if (!quest.completed) {
-                    addXP(quest.xpReward);
-                    addSkillXP(quest.skill, quest.xpReward);
-                }
                 return {
                     ...quest,
                     completed: !quest.completed,
@@ -236,27 +154,31 @@ const QuestsPage = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {activeTab === 'active'
-                        ? activeQuests.map(quest => (
-                            <QuestCard
-                                key={quest.id}
-                                title={quest.title}
-                                description={quest.description}
-                                xpReward={quest.xpReward}
-                                difficulty={quest.difficulty}
-                                onToggle={() => handleToggleQuest(quest.id)}
-                                onDelete={() => handleDeleteQuest(quest.id)}
-                            />
-                        ))
-                        : completedQuests.map(quest => (
-                            <QuestCard
-                                key={quest.id}
-                                title={quest.title}
-                                description={quest.description}
-                                xpReward={quest.xpReward}
-                                difficulty={quest.difficulty}
-                                completed={true}
-                            />
-                        ))
+                        ? activeQuests.length === 0
+                            ? <p className="text-muted-foreground text-sm col-span-2">No active quests. Add one to get started!</p>
+                            : activeQuests.map(quest => (
+                                <QuestCard
+                                    key={quest.id}
+                                    title={quest.title}
+                                    description={quest.description}
+                                    xpReward={quest.xpReward}
+                                    difficulty={quest.difficulty}
+                                    onToggle={() => handleToggleQuest(quest.id)}
+                                    onDelete={() => handleDeleteQuest(quest.id)}
+                                />
+                            ))
+                        : completedQuests.length === 0
+                            ? <p className="text-muted-foreground text-sm col-span-2">No completed quests yet.</p>
+                            : completedQuests.map(quest => (
+                                <QuestCard
+                                    key={quest.id}
+                                    title={quest.title}
+                                    description={quest.description}
+                                    xpReward={quest.xpReward}
+                                    difficulty={quest.difficulty}
+                                    completed={true}
+                                />
+                            ))
                     }
                 </div>
 

@@ -5,100 +5,56 @@ import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import { User, Mail, Trophy, Target, Flame, LogOut } from 'lucide-react';
 import SkillRadarChart from '../components/SkillRadarChart';
-import { getData, generateKey } from '../lib/storage';
+
+const DEFAULT_SKILLS = [
+    { name: 'Focus', currentXP: 0, level: 1 },
+    { name: 'Learning', currentXP: 0, level: 1 },
+    { name: 'Health', currentXP: 0, level: 1 },
+    { name: 'Creativity', currentXP: 0, level: 1 },
+    { name: 'Confidence', currentXP: 0, level: 1 },
+    { name: 'Social', currentXP: 0, level: 1 }
+];
+
+const DEFAULT_ACHIEVEMENTS = [
+    { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: false },
+    { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: false },
+    { id: 3, title: 'Quest Master', description: 'Completed 10 quests', unlocked: false },
+    { id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill', unlocked: false },
+    { id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight', unlocked: false },
+    { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
+];
 
 const ProfilePage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
-    const [playerStats, setPlayerStats] = useState({
-        level: 1,
-        currentXP: 0,
-        maxXP: 100,
-        totalXP: 0
-    });
-    const [skills, setSkills] = useState([]);
-    const [achievements, setAchievements] = useState([
-        { id: 1, title: 'First Steps', description: 'Created your first habit', unlocked: false },
-        { id: 2, title: 'Week Warrior', description: 'Maintained a 7-day streak', unlocked: false },
-        { id: 3, title: 'Quest Master', description: 'Completed 10 quests', unlocked: false },
-        { id: 4, title: 'Skill Seeker', description: 'Reached level 5 in any skill', unlocked: false },
-        { id: 5, title: 'Consistency King', description: 'Completed habits for 30 days straight', unlocked: false },
-        { id: 6, title: 'Focus Champion', description: 'Completed 100 Pomodoro sessions', unlocked: false },
-    ]);
+    const [playerStats] = useState({ level: 1, currentXP: 0, maxXP: 100, totalXP: 0 });
+    const [skills] = useState(DEFAULT_SKILLS);
+    const [achievements] = useState(DEFAULT_ACHIEVEMENTS);
 
     useEffect(() => {
         const getUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                navigate('/login');
-                return;
-            }
-            if (session) {
-                setUser(session.user);
-                loadProfileData(session.user.id);
-            }
+            if (!session) { navigate('/login'); return; }
+            setUser(session.user);
         };
         getUser();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!session) {
-                navigate('/login');
-            } else {
-                setUser(session.user);
-                loadProfileData(session.user.id);
-            }
+            if (!session) navigate('/login');
+            else setUser(session.user);
         });
-
         return () => subscription?.unsubscribe();
     }, [navigate]);
-
-    const loadProfileData = (userId) => {
-        // Load XP data
-        const xpKey = generateKey(userId, 'xp');
-        const xpData = getData(xpKey, { totalXP: 0, level: 1, currentXP: 0, nextLevelXP: 100 });
-        // normalize to `maxXP` for XPBar compatibility
-        setPlayerStats({ ...xpData, maxXP: xpData.nextLevelXP });
-
-        // Load skills
-        const skillsKey = generateKey(userId, 'skills');
-        const defaultSkills = [
-            { name: 'Focus', currentXP: 0, level: 1 },
-            { name: 'Learning', currentXP: 0, level: 1 },
-            { name: 'Health', currentXP: 0, level: 1 },
-            { name: 'Creativity', currentXP: 0, level: 1 },
-            { name: 'Confidence', currentXP: 0, level: 1 },
-            { name: 'Social', currentXP: 0, level: 1 }
-        ];
-        const skillsData = getData(skillsKey, defaultSkills);
-        setSkills(skillsData);
-
-        const habitsKey = generateKey(userId, 'habits');
-        const habits = getData(habitsKey, []);
-        const questsKey = generateKey(userId, 'quests');
-        const quests = getData(questsKey, []);
-
-        setAchievements(prevAchievements => {
-            const newAchievements = [...prevAchievements];
-            if (habits.length > 0) newAchievements[0].unlocked = true; // First Steps
-            if (habits.some(h => h.streak >= 7)) newAchievements[1].unlocked = true; // Week Warrior
-            if (quests.filter(q => q.completed).length >= 10) newAchievements[2].unlocked = true; // Quest Master
-            if (skillsData && skillsData.length > 0 && skillsData.some(s => s && s.level >= 5)) newAchievements[3].unlocked = true; // Skill Seeker
-            return newAchievements;
-        });
-    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
     };
 
-
     return (
         <div className="flex min-h-screen bg-background">
             <Navigation />
-
             <main className="flex-1 ml-10 p-8">
-                {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-foreground mb-2">Profile</h1>
@@ -153,11 +109,9 @@ const ProfilePage = () => {
                         <div className="w-full">
                             <SkillRadarChart skills={skills} />
                         </div>
-
                     </div>
 
                     <div className="lg:col-span-2 space-y-6">
-                        {/* XP Progress */}
                         <div className="bg-card border border-border rounded-lg p-6">
                             <h3 className="font-semibold text-foreground mb-4">Level Progress</h3>
                             <XPBar
@@ -175,30 +129,19 @@ const ProfilePage = () => {
                                 </div>
                                 <div className="text-3xl font-bold text-foreground">{playerStats.totalXP.toLocaleString()}</div>
                             </div>
-
                             <div className="bg-card border border-border rounded-lg p-6">
                                 <div className="flex items-center gap-3 mb-2">
                                     <Target className="w-5 h-5 text-chart-2" />
                                     <span className="text-muted-foreground text-sm">Habits Completed</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
-                                    const habitsKey = generateKey(user.id, 'habits');
-                                    const habits = getData(habitsKey, []);
-                                    return habits.filter(h => h.completedToday).length;
-                                })() : 0}</div>
+                                <div className="text-3xl font-bold text-foreground">0</div>
                             </div>
-
                             <div className="bg-card border border-border rounded-lg p-6">
                                 <div className="flex items-center gap-3 mb-2">
                                     <Flame className="w-5 h-5 text-chart-1" />
                                     <span className="text-muted-foreground text-sm">Longest Streak</span>
                                 </div>
-                                <div className="text-3xl font-bold text-foreground">{user ? (() => {
-                                    const habitsKey = generateKey(user.id, 'habits');
-                                    const habits = getData(habitsKey, []);
-                                    const streaks = habits.map(h => h.streak || 0);
-                                    return streaks.length > 0 ? Math.max(...streaks) : 0;
-                                })() : 0} days</div>
+                                <div className="text-3xl font-bold text-foreground">0 days</div>
                             </div>
                         </div>
 
@@ -214,18 +157,14 @@ const ProfilePage = () => {
                                             }`}
                                     >
                                         <div className="flex items-start gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${achievement.unlocked ? 'bg-primary/20' : 'bg-muted'
-                                                }`}>
-                                                <Trophy className={`w-5 h-5 ${achievement.unlocked ? 'text-primary' : 'text-muted-foreground'
-                                                    }`} />
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${achievement.unlocked ? 'bg-primary/20' : 'bg-muted'}`}>
+                                                <Trophy className={`w-5 h-5 ${achievement.unlocked ? 'text-primary' : 'text-muted-foreground'}`} />
                                             </div>
                                             <div className="flex-1">
                                                 <h4 className="font-medium text-foreground mb-1">{achievement.title}</h4>
                                                 <p className="text-sm text-muted-foreground">{achievement.description}</p>
                                                 {achievement.unlocked && (
-                                                    <span className="inline-block mt-2 text-xs text-primary font-medium">
-                                                        ✓ Unlocked
-                                                    </span>
+                                                    <span className="inline-block mt-2 text-xs text-primary font-medium">✓ Unlocked</span>
                                                 )}
                                             </div>
                                         </div>
@@ -233,8 +172,6 @@ const ProfilePage = () => {
                                 ))}
                             </div>
                         </div>
-
-
 
                         <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-lg p-6 flex gap-10 items-center justify-between">
                             <p className="text-sm text-muted-foreground">Irreversible actions that affect your account</p>

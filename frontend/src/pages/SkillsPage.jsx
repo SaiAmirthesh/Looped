@@ -2,16 +2,58 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Navigation from '../components/Navigation';
-import StatCard from '../components/StatCard';
-import { Target, Brain, Heart, BookOpen, Palette, Users, Sword, Zap } from 'lucide-react';
-import { getData, generateKey } from '../lib/storage';
-import { runMigrations } from '../lib/migrations';
+import { Target, Brain, Heart, BookOpen, Palette, Users, Zap } from 'lucide-react';
+
+const DEFAULT_SKILLS = [
+    { name: 'Focus', currentXP: 0, level: 1 },
+    { name: 'Learning', currentXP: 0, level: 1 },
+    { name: 'Health', currentXP: 0, level: 1 },
+    { name: 'Creativity', currentXP: 0, level: 1 },
+    { name: 'Confidence', currentXP: 0, level: 1 },
+    { name: 'Social', currentXP: 0, level: 1 }
+];
+
+const getSkillIcon = (skillName) => {
+    const iconMap = {
+        'Focus': <Target className="w-6 h-6 text-primary" />,
+        'Learning': <BookOpen className="w-6 h-6 text-chart-4" />,
+        'Health': <Heart className="w-6 h-6 text-chart-1" />,
+        'Creativity': <Palette className="w-6 h-6 text-chart-3" />,
+        'Confidence': <Zap className="w-6 h-6 text-yellow-500" />,
+        'Social': <Users className="w-6 h-6 text-chart-5" />
+    };
+    return iconMap[skillName] || <Target className="w-6 h-6 text-primary" />;
+};
+
+const getSkillDescription = (skillName) => {
+    const descMap = {
+        'Focus': 'Your ability to concentrate and complete tasks without distraction',
+        'Learning': 'Knowledge acquisition and continuous self-improvement',
+        'Health': 'Physical and mental well-being through healthy habits',
+        'Creativity': 'Innovative thinking and creative problem-solving',
+        'Confidence': 'Self-assurance and belief in your abilities',
+        'Social': 'Building and maintaining meaningful relationships'
+    };
+    return descMap[skillName] || '';
+};
+
+const enrichSkills = (rawSkills) =>
+    rawSkills.map(skill => {
+        const maxXP = Math.floor(100 * Math.pow(skill.level, 1.5));
+        const progress = maxXP > 0 ? Math.floor((skill.currentXP / maxXP) * 100) : 0;
+        return {
+            ...skill,
+            maxXP,
+            progress,
+            icon: getSkillIcon(skill.name),
+            description: getSkillDescription(skill.name)
+        };
+    });
 
 const SkillsPage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
-    const [skills, setSkills] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [skills] = useState(enrichSkills(DEFAULT_SKILLS));
 
     useEffect(() => {
         const checkUser = async () => {
@@ -20,39 +62,7 @@ const SkillsPage = () => {
                 navigate('/login');
                 return;
             }
-
-            const userId = session.user.id;
             setUser(session.user);
-
-            runMigrations(userId);
-
-            const skillsKey = generateKey(userId, 'skills');
-            const defaultSkills = [
-                { name: 'Focus', currentXP: 0, level: 1 },
-                { name: 'Learning', currentXP: 0, level: 1 },
-                { name: 'Health', currentXP: 0, level: 1 },
-                { name: 'Creativity', currentXP: 0, level: 1 },
-                { name: 'Confidence', currentXP: 0, level: 1 },
-                { name: 'Social', currentXP: 0, level: 1 }
-            ];
-            const skillsData = getData(skillsKey, defaultSkills);
-
-            const enrichedSkills = skillsData
-                .filter(skill => skill && skill.name)
-                .map(skill => {
-                    const maxXP = Math.floor(100 * Math.pow(skill.level, 1.5));
-                    const progress = maxXP > 0 ? Math.floor((skill.currentXP / maxXP) * 100) : 0;
-                    return {
-                        ...skill,
-                        maxXP,
-                        progress,
-                        icon: getSkillIcon(skill.name),
-                        description: getSkillDescription(skill.name)
-                    };
-                });
-
-            setSkills(enrichedSkills);
-            setLoading(false);
         };
 
         checkUser();
@@ -67,41 +77,6 @@ const SkillsPage = () => {
 
         return () => subscription?.unsubscribe();
     }, [navigate]);
-
-    const getSkillIcon = (skillName) => {
-        const iconMap = {
-            'Focus': <Target className="w-6 h-6 text-primary" />,
-            'Learning': <BookOpen className="w-6 h-6 text-chart-4" />,
-            'Health': <Heart className="w-6 h-6 text-chart-1" />,
-            'Creativity': <Palette className="w-6 h-6 text-chart-3" />,
-            'Confidence': <Zap className="w-6 h-6 text-yellow-500" />,
-            'Social': <Users className="w-6 h-6 text-chart-5" />
-        };
-        return iconMap[skillName] || <Target className="w-6 h-6 text-primary" />;
-    };
-
-    const getSkillDescription = (skillName) => {
-        const descMap = {
-            'Focus': 'Your ability to concentrate and complete tasks without distraction',
-            'Learning': 'Knowledge acquisition and continuous self-improvement',
-            'Health': 'Physical and mental well-being through healthy habits',
-            'Creativity': 'Innovative thinking and creative problem-solving',
-            'Confidence': 'Self-assurance and belief in your abilities',
-            'Social': 'Building and maintaining meaningful relationships'
-        };
-        return descMap[skillName] || '';
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-muted-foreground">Loading your skills...</p>
-                </div>
-            </div>
-        );
-    }
 
     const totalLevel = skills.reduce((sum, skill) => sum + skill.level, 0);
     const averageLevel = skills.length > 0 ? (totalLevel / skills.length).toFixed(1) : 0;

@@ -4,10 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import Navigation from "../components/Navigation";
 import HabitCard from "../components/HabitCard";
 import { Plus, X, Filter, Flame } from "lucide-react";
-import { getData, setData, generateKey } from "../lib/storage";
-import { runMigrations } from "../lib/migrations";
-import { SquareCheckBig,ListChecks } from "lucide-react";
-
+import { SquareCheckBig, ListChecks } from "lucide-react";
 
 const HabitsPage = () => {
   const navigate = useNavigate();
@@ -31,24 +28,7 @@ const HabitsPage = () => {
         navigate("/login");
         return;
       }
-
-      const userId = session.user.id;
       setUser(session.user);
-
-      runMigrations(userId);
-
-      const storageKey = generateKey(userId, "habits");
-      const savedHabits = getData(storageKey, []);
-
-      const today = new Date().toISOString().split("T")[0];
-      const resettedHabits = savedHabits.map((habit) => {
-        if (habit.lastCompleted !== today && habit.completedToday) {
-          return { ...habit, completedToday: false };
-        }
-        return habit;
-      });
-
-      setHabits(resettedHabits);
     };
 
     checkUser();
@@ -65,81 +45,6 @@ const HabitsPage = () => {
 
     return () => subscription?.unsubscribe();
   }, [navigate]);
-
-  useEffect(() => {
-    if (user) {
-      const storageKey = generateKey(user.id, "habits");
-      setData(storageKey, habits);
-    }
-  }, [habits, user]);
-
-  const addXP = (amount) => {
-    if (!user) return;
-
-    const xpKey = generateKey(user.id, "xp");
-    const currentXP = getData(xpKey, {
-      totalXP: 0,
-      level: 1,
-      currentXP: 0,
-      nextLevelXP: 100,
-    });
-
-    const currentNextLevelXP = Math.floor(100 * Math.pow(currentXP.level, 1.5));
-
-    const newCurrentXP = currentXP.currentXP + amount;
-    const xpForLevelUp = currentNextLevelXP;
-
-    let newLevel = currentXP.level;
-    let finalCurrentXP = newCurrentXP;
-    let newNextLevelXP = currentNextLevelXP;
-
-    if (newCurrentXP >= xpForLevelUp) {
-      newLevel += 1;
-      finalCurrentXP = newCurrentXP - xpForLevelUp;
-      newNextLevelXP = Math.floor(100 * Math.pow(newLevel, 1.5));
-    }
-
-    const updatedXP = {
-      totalXP: currentXP.totalXP + amount,
-      level: newLevel,
-      currentXP: finalCurrentXP,
-      nextLevelXP: newNextLevelXP,
-    };
-
-    setData(xpKey, updatedXP);
-  };
-
-  const addSkillXP = (skillName, amount) => {
-    if (!user) return;
-
-    const skillsKey = generateKey(user.id, "skills");
-    const defaultSkills = [
-      { name: "Focus", currentXP: 0, level: 1 },
-      { name: "Learning", currentXP: 0, level: 1 },
-      { name: "Health", currentXP: 0, level: 1 },
-      { name: "Creativity", currentXP: 0, level: 1 },
-      { name: "Confidence", currentXP: 0, level: 1 },
-      { name: "Social", currentXP: 0, level: 1 },
-    ];
-    let skills = getData(skillsKey, defaultSkills);
-
-    skills = skills.map((skill) => {
-      if (skill.name === skillName) {
-        const newXP = skill.currentXP + amount;
-        const nextLevelXP = Math.floor(100 * Math.pow(skill.level, 1.5));
-        const levelUp = newXP >= nextLevelXP;
-
-        return {
-          ...skill,
-          currentXP: levelUp ? newXP - nextLevelXP : newXP,
-          level: levelUp ? skill.level + 1 : skill.level,
-        };
-      }
-      return skill;
-    });
-
-    setData(skillsKey, skills);
-  };
 
   const handleAddHabit = (e) => {
     e.preventDefault();
@@ -166,20 +71,11 @@ const HabitsPage = () => {
       if (habit.id === id) {
         const completedToday = !habit.completedToday;
         if (completedToday) {
-          const lastCompleted =
-            habit.lastCompleted === today ? habit.lastCompleted : today;
           const sameDay = habit.lastCompleted === today;
-
-          addXP(10);
-
-          if (habit.skill) {
-            addSkillXP(habit.skill, 10);
-          }
-
           return {
             ...habit,
             completedToday: true,
-            lastCompleted: lastCompleted,
+            lastCompleted: today,
             streak: sameDay ? habit.streak : habit.streak + 1,
           };
         } else {
@@ -302,7 +198,7 @@ const HabitsPage = () => {
                   : "bg-card border border-border hover:bg-muted"
               }`}
             >
-              Active ({habits.filter((h) => !h.completed).length})
+              Active ({habits.filter((h) => !h.completedToday).length})
             </button>
             <button
               onClick={() => setFilter("completed")}

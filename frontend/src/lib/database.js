@@ -489,3 +489,24 @@ export const getDashboardData = async (userId) => {
 
   return { profile, habits, quests, skills };
 };
+
+// ─── Leaderboard ─────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all users ranked by total_xp descending.
+ * Returns up to `limit` entries with rank, next_level_xp attached.
+ */
+export const getLeaderboard = async (limit = 50) => {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, display_name, avatar_url, total_xp, current_xp, level')
+    .order('total_xp', { ascending: false })
+    .limit(limit);
+  if (error) { console.error('getLeaderboard:', error.message); return []; }
+  return (data ?? []).map((u, i) => ({
+    ...u,
+    rank: i + 1,
+    next_level_xp: nextLevelXp(u.level ?? 1),
+    display_name: u.display_name || 'Adventurer',
+  }));
+};

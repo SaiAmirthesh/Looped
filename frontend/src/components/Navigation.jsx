@@ -14,6 +14,7 @@ import {
   User,
   Camera,
   Loader2,
+  Trophy,
 } from "lucide-react";
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
   { name: "Skills", path: "/skills", icon: Zap },
   { name: "Focus", path: "/focus", icon: Timer },
   { name: "Calendar", path: "/calendar", icon: CalendarDays },
+  { name: "Leaderboard", path: "/leaderboard", icon: Trophy },
   { name: "Profile", path: "/profile", icon: User },
 ];
 
@@ -102,10 +104,9 @@ export default function Navigation() {
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
-                  `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all relative overflow-hidden ${
-                    isActive
-                      ? "text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground hover:text-sidebar-primary-foreground"
+                  `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all relative overflow-hidden ${isActive
+                    ? "text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground hover:text-sidebar-primary-foreground"
                   }`
                 }
                 style={({ isActive }) => ({

@@ -178,9 +178,11 @@ ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE focus_sessions ENABLE ROW LEVEL SECURITY;
 
 -- User Profiles Policies
-CREATE POLICY "Users can view their own profile"
+
+-- Any authenticated user can read public leaderboard fields for all profiles
+CREATE POLICY "Authenticated users can view all profiles (leaderboard)"
     ON user_profiles FOR SELECT
-    USING (auth.uid() = id);
+    USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "Users can update their own profile"
     ON user_profiles FOR UPDATE

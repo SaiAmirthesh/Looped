@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+import * as db from "../lib/database";
 import Navigation from "../components/Navigation";
 import HabitCard from "../components/HabitCard";
 import { Plus, X, Flame, CheckSquare, ListChecks, SquareCheckBig } from "lucide-react";
@@ -11,68 +12,99 @@ const HabitsPage = () => {
   const [filter, setFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [habits, setHabits] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [newHabit, setNewHabit] = useState({ name: "", category: "Wellness", skill: "Focus" });
 
+  // Auth check + fetch habits
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate("/login"); return; }
       setUser(session.user);
+      await fetchHabits(session.user.id);
     };
     checkUser();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate("/login");
-      else setUser(session.user);
+      else {
+        setUser(session.user);
+        fetchHabits(session.user.id);
+      }
     });
     return () => subscription?.unsubscribe();
   }, [navigate]);
 
-  const handleAddHabit = (e) => {
+  const fetchHabits = async (userId) => {
+    if (!userId) return;
+    setLoading(true);
+    const habitsData = await db.getHabits(userId);
+    setHabits(habitsData);
+    setLoading(false);
+  };
+
+  const handleAddHabit = async (e) => {
     e.preventDefault();
-    if (!newHabit.name.trim()) return;
-    const habit = {
-      id: crypto.randomUUID(),
-      title: newHabit.name,
+    if (!newHabit.name.trim() || !user) return;
+    
+    setLoading(true);
+    const createdHabit = await db.createHabit(user.id, {
+      name: newHabit.name,
       category: newHabit.category,
       skill: newHabit.skill,
-      streak: 0,
-      completedToday: false,
-      lastCompleted: null,
-      createdAt: new Date().toISOString(),
-    };
-    setHabits([...habits, habit]);
-    setNewHabit({ name: "", category: "Wellness", skill: "Focus" });
-    setShowModal(false);
+    });
+    
+    if (createdHabit) {
+      setHabits([createdHabit, ...habits]);
+      setNewHabit({ name: "", category: "Wellness", skill: "Focus" });
+      setShowModal(false);
+    }
+    setLoading(false);
   };
 
-  const handleToggleHabit = (id) => {
-    const today = new Date().toISOString().split("T")[0];
-    setHabits(habits.map((habit) => {
-      if (habit.id === id) {
-        const completedToday = !habit.completedToday;
-        if (completedToday) {
-          const sameDay = habit.lastCompleted === today;
-          return { ...habit, completedToday: true, lastCompleted: today, streak: sameDay ? habit.streak : habit.streak + 1 };
-        }
-        return { ...habit, completedToday: false };
-      }
-      return habit;
-    }));
+  const handleToggleHabit = async (id) => {
+    if (!user) return;
+    
+    const habit = habits.find(h => h.id === id);
+    if (!habit) return;
+    
+    setLoading(true);
+    let result;
+    
+    if (habit.completed_today) {
+      // If already completed, uncomplete it
+      result = await db.uncompleteHabit(id, user.id);
+    } else {
+      // If not completed, complete it
+      result = await db.completeHabit(id, user.id, 10);
+    }
+    
+    if (result.success) {
+      await fetchHabits(user.id);
+    }
+    setLoading(false);
   };
 
-  const handleDeleteHabit = (id) => {
-    if (window.confirm("Delete this habit?")) setHabits(habits.filter((h) => h.id !== id));
+  const handleDeleteHabit = async (id) => {
+    if (!window.confirm("Delete this habit?")) return;
+    
+    setLoading(true);
+    const success = await db.deleteHabit(id);
+    
+    if (success) {
+      setHabits(habits.filter((h) => h.id !== id));
+    }
+    setLoading(false);
   };
 
   const filteredHabits = habits.filter((h) => {
-    if (filter === "active") return !h.completedToday;
-    if (filter === "completed") return h.completedToday;
+    if (filter === "active") return !h.completed_today;
+    if (filter === "completed") return h.completed_today;
     return true;
   });
 
   const totalHabits = habits.length;
-  const completedToday = habits.filter((h) => h.completedToday).length;
-  const longestStreak = habits.length > 0 ? Math.max(...habits.map((h) => h.streak)) : 0;
+  const completedToday = habits.filter((h) => h.completed_today).length;
+  const longestStreak = habits.length > 0 ? Math.max(...habits.map((h) => h.longest_streak)) : 0;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -156,9 +188,9 @@ const HabitsPage = () => {
               filteredHabits.map((habit) => (
                 <HabitCard
                   key={habit.id}
-                  name={habit.title}
+                  name={habit.name}
                   streak={habit.streak}
-                  completed={habit.completedToday}
+                  completed={habit.completed_today}
                   category={habit.category}
                   onToggle={() => handleToggleHabit(habit.id)}
                   onDelete={() => handleDeleteHabit(habit.id)}

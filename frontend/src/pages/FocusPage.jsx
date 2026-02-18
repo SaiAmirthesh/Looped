@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import ElectricBorder from '../components/ElectricBorder';
 import { Play, Pause, RotateCcw, Coffee, Brain, Clock, Zap } from 'lucide-react';
@@ -13,12 +14,18 @@ const FocusPage = () => {
     const [isRunning, setIsRunning] = useState(false);
     const [sessionType, setSessionType] = useState('focus');
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
+    const [currentSessionId, setCurrentSessionId] = useState(null);
 
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { navigate('/login'); return; }
             setUser(session.user);
+            // Fetch sessions completed today only once on mount
+            const today = new Date().toISOString().split('T')[0];
+            const sessions = await db.getFocusSessions(session.user.id);
+            const todaySessions = sessions.filter(s => s.completed_at && s.completed_at.split('T')[0] === today);
+            setSessionsCompleted(todaySessions.length);
         };
         checkUser();
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -31,11 +38,24 @@ const FocusPage = () => {
     useEffect(() => {
         let interval = null;
         if (isRunning) {
-            interval = setInterval(() => {
+            // Create session on start (once)
+            if (!currentSessionId && user) {
+                db.createFocusSession(user.id, sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15)
+                    .then(session => {
+                        if (session) setCurrentSessionId(session.id);
+                    });
+            }
+            
+            interval = setInterval(async () => {
                 if (seconds === 0) {
                     if (minutes === 0) {
                         setIsRunning(false);
-                        if (sessionType === 'focus') setSessionsCompleted(prev => prev + 1);
+                        // Complete the focus session and award XP if it's a focus session
+                        if (sessionType === 'focus' && currentSessionId && user) {
+                            await db.completeFocusSession(currentSessionId, user.id);
+                            setSessionsCompleted(prev => prev + 1);
+                        }
+                        setCurrentSessionId(null);
                         if ('Notification' in window && Notification.permission === 'granted') {
                             new Notification('Looped', { body: `${sessionType === 'focus' ? 'Focus session' : 'Break'} completed!` });
                         }
@@ -49,7 +69,7 @@ const FocusPage = () => {
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isRunning, minutes, seconds, sessionType]);
+    }, [isRunning, minutes, seconds, sessionType, currentSessionId, user]);
 
     const handleStart = () => setIsRunning(true);
     const handlePause = () => setIsRunning(false);

@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import { User, Mail, Trophy, Target, Flame, LogOut, Shield, Camera, Loader2 } from 'lucide-react';
@@ -29,20 +30,37 @@ const ProfilePage = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
-    const [skills] = useState(DEFAULT_SKILLS);
+    const [skills, setSkills] = useState([]);
     const [achievements] = useState(DEFAULT_ACHIEVEMENTS);
 
     // Read from shared context — no local fetch needed
     const { user, profile, updateAvatarUrl } = useUserProfile() ?? {};
 
+    // Fetch skills from database
+    const fetchSkills = useCallback(async (userId) => {
+        const skillsData = await db.getSkills(userId);
+        // Transform snake_case to camelCase for SkillRadarChart
+        const transformedSkills = skillsData.map(s => ({
+            ...s,
+            currentXP: s.current_xp, // Map current_xp to currentXP
+        }));
+        setSkills(transformedSkills);
+    }, []);
+
+    useEffect(() => {
+        if (user) {
+            fetchSkills(user.id);
+        }
+    }, [user?.id, fetchSkills]);
+
     const avatarUrl = profile?.avatar_url ?? null;
     const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Adventurer';
-    const playerStats = {
+    const playerStats = useMemo(() => ({
         level: profile?.level ?? 1,
         currentXP: profile?.current_xp ?? 0,
         maxXP: profile?.next_level_xp ?? 100,
         totalXP: profile?.total_xp ?? 0,
-    };
+    }), [profile]);
 
     const handleAvatarUpload = async (e) => {
         const file = e.target.files?.[0];

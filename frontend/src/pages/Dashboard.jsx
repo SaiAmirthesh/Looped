@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
 import HabitCard from '../components/HabitCard';
@@ -11,45 +12,107 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [playerStats] = useState({ level: 1, currentXP: 0, maxXP: 100, totalXP: 0 });
+    const [playerStats, setPlayerStats] = useState({ level: 1, currentXP: 0, maxXP: 100, totalXP: 0 });
     const [dailyHabits, setDailyHabits] = useState([]);
     const [activeQuests, setActiveQuests] = useState([]);
-    const [currentStreak] = useState(0);
+    const [currentStreak, setCurrentStreak] = useState(0);
+
+    // Fetch dashboard data on mount and auth change
+    const fetchDashboardData = useCallback(async (userId) => {
+        setLoading(true);
+        const dataResult = await db.getDashboardData(userId);
+        
+        if (dataResult.profile) {
+            setPlayerStats({
+                level: dataResult.profile.level || 1,
+                currentXP: dataResult.profile.current_xp || 0,
+                maxXP: dataResult.profile.next_level_xp || 100,
+                totalXP: dataResult.profile.total_xp || 0,
+            });
+        }
+        
+        setDailyHabits(dataResult.habits || []);
+        setActiveQuests(dataResult.quests || []);
+        
+        // Calculate current streak from habits
+        if (dataResult.habits.length > 0) {
+            const streaks = dataResult.habits.map(h => h.streak || 0);
+            const maxStreak = Math.max(...streaks);
+            setCurrentStreak(maxStreak);
+        }
+        
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { navigate('/login'); return; }
             setUser(session.user);
-            setLoading(false);
+            // Fetch data immediately on mount
+            await fetchDashboardData(session.user.id);
         };
         checkUser();
+
+        // Only listen for auth changes, don't refetch on subscription
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!session) navigate('/login');
-            else setUser(session.user);
+            if (!session) {
+                navigate('/login');
+            } else {
+                setUser(session.user);
+                // Only refetch if user ID changed
+                if (user?.id !== session.user.id) {
+                    fetchDashboardData(session.user.id);
+                }
+            }
         });
         return () => subscription.unsubscribe();
-    }, [navigate]);
+    }, [navigate, user?.id, fetchDashboardData]);
+
+    const handleToggleHabit = useCallback(async (habitId) => {
+        if (!user) return;
+        
+        const habit = dailyHabits.find(h => h.id === habitId);
+        if (!habit) return;
+        
+        // Optimistic update - update UI immediately
+        const updatedHabits = dailyHabits.map(h => 
+            h.id === habitId ? { ...h, completed_today: !h.completed_today } : h
+        );
+        setDailyHabits(updatedHabits);
+        
+        // Update background without blocking UI
+        if (habit.completed_today) {
+            await db.uncompleteHabit(habitId, user.id);
+        } else {
+            await db.completeHabit(habitId, user.id, 10);
+        }
+    }, [user, dailyHabits]);
+
+    const handleToggleQuest = useCallback(async (questId) => {
+        if (!user) return;
+        
+        // Optimistic update
+        const updatedQuests = activeQuests.map(q =>
+            q.id === questId ? { ...q, completed: !q.completed } : q
+        );
+        setActiveQuests(updatedQuests);
+        
+        // Update background without blocking UI
+        const result = await db.completeQuest(questId, user.id);
+        if (!result.success) {
+            // Revert on error
+            setActiveQuests(activeQuests);
+        }
+    }, [user, activeQuests]);
+
+    // Calculate memoized values (move before early returns)
+    const habitsCompleteCount = useMemo(() => dailyHabits.filter(h => h.completed_today).length, [dailyHabits]);
+    const username = user?.email?.split('@')[0] || 'Adventurer';
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
-    };
-
-    const handleToggleHabit = (habitId) => {
-        setDailyHabits(prev => prev.map(habit => {
-            if (habit.id === habitId) {
-                const completed = !habit.completed;
-                return { ...habit, completed, streak: completed ? habit.streak + 1 : Math.max(0, habit.streak - 1) };
-            }
-            return habit;
-        }));
-    };
-
-    const handleToggleQuest = (questId) => {
-        setActiveQuests(prev => prev.map(quest =>
-            quest.id === questId ? { ...quest, completed: !quest.completed } : quest
-        ));
     };
 
     if (loading) {
@@ -62,9 +125,6 @@ const Dashboard = () => {
             </div>
         );
     }
-
-    const habitsCompleteCount = dailyHabits.filter(h => h.completed).length;
-    const username = user?.email?.split('@')[0] || 'Adventurer';
 
     return (
         <div className="flex min-h-screen bg-background">
@@ -142,9 +202,9 @@ const Dashboard = () => {
                                     dailyHabits.map(habit => (
                                         <HabitCard
                                             key={habit.id}
-                                            name={habit.title}
+                                            name={habit.name}
                                             streak={habit.streak}
-                                            completed={habit.completed}
+                                            completed={habit.completed_today}
                                             category={habit.category}
                                             onToggle={() => handleToggleHabit(habit.id)}
                                         />
@@ -169,13 +229,13 @@ const Dashboard = () => {
                                         <button onClick={() => navigate('/quests')} className="mt-3 text-xs text-primary hover:underline">Add quests →</button>
                                     </div>
                                 ) : (
-                                    activeQuests.map(quest => (
+                                    activeQuests.filter(q => !q.completed).map(quest => (
                                         <QuestCard
                                             key={quest.id}
                                             title={quest.title}
                                             description={quest.description}
-                                            xpReward={quest.xpReward}
-                                            difficulty={quest.difficulty}
+                                            xpReward={quest.xp_reward}
+                                            difficulty={quest.difficulty.toLowerCase()}
                                             completed={quest.completed}
                                             onToggle={() => handleToggleQuest(quest.id)}
                                         />

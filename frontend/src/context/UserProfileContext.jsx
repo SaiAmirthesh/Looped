@@ -29,7 +29,10 @@ export function UserProfileProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setUser(session.user);
-        fetchProfile(session.user.id);
+        // Only refetch if user ID changed
+        if (user?.id !== session.user.id) {
+          fetchProfile(session.user.id);
+        }
       } else {
         setUser(null);
         setProfile(null);
@@ -37,7 +40,7 @@ export function UserProfileProvider({ children }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [user?.id, fetchProfile]);
 
   // Call this after a successful avatar upload to update context immediately
   const updateAvatarUrl = useCallback((url) => {

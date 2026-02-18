@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import QuestCard from '../components/QuestCard';
 import { Sword, CheckCircle, X, Plus, Trophy } from 'lucide-react';
@@ -11,56 +12,85 @@ const QuestsPage = () => {
     const [activeTab, setActiveTab] = useState('active');
     const [showModal, setShowModal] = useState(false);
     const [quests, setQuests] = useState([]);
-    const [newQuest, setNewQuest] = useState({ title: '', description: '', xpReward: 100, difficulty: 'easy', skill: 'Focus' });
+    const [loading, setLoading] = useState(false);
+    const [newQuest, setNewQuest] = useState({ title: '', description: '', xpReward: 100, difficulty: 'Easy', skill: 'Focus' });
 
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { navigate('/login'); return; }
             setUser(session.user);
+            await fetchQuests(session.user.id);
         };
         checkUser();
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!session) navigate('/login');
-            else setUser(session.user);
+            else {
+                setUser(session.user);
+                fetchQuests(session.user.id);
+            }
         });
         return () => subscription?.unsubscribe();
     }, [navigate]);
 
-    const handleAddQuest = (e) => {
+    const fetchQuests = async (userId) => {
+        if (!userId) return;
+        setLoading(true);
+        const questsData = await db.getQuests(userId);
+        setQuests(questsData);
+        setLoading(false);
+    };
+
+    const handleAddQuest = async (e) => {
         e.preventDefault();
-        if (!newQuest.title.trim()) return;
-        const quest = {
-            id: crypto.randomUUID(),
+        if (!newQuest.title.trim() || !user) return;
+        
+        setLoading(true);
+        const createdQuest = await db.createQuest(user.id, {
             title: newQuest.title,
             description: newQuest.description,
-            xpReward: parseInt(newQuest.xpReward),
             difficulty: newQuest.difficulty,
             skill: newQuest.skill,
-            progress: 0,
-            total: 1,
-            completed: false,
-            createdAt: new Date().toISOString()
-        };
-        setQuests([...quests, quest]);
-        setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'easy', skill: 'Focus' });
-        setShowModal(false);
+            xpReward: parseInt(newQuest.xpReward),
+        });
+        
+        if (createdQuest) {
+            setQuests([createdQuest, ...quests]);
+            setNewQuest({ title: '', description: '', xpReward: 100, difficulty: 'Easy', skill: 'Focus' });
+            setShowModal(false);
+        }
+        setLoading(false);
     };
 
-    const handleToggleQuest = (id) => {
-        setQuests(quests.map(quest =>
-            quest.id === id ? { ...quest, completed: !quest.completed, completedDate: !quest.completed ? new Date().toISOString().split('T')[0] : null } : quest
-        ));
+    const handleToggleQuest = async (id) => {
+        if (!user) return;
+        
+        setLoading(true);
+        const result = await db.completeQuest(id, user.id);
+        
+        if (result.success) {
+            // Refresh quests from DB
+            await fetchQuests(user.id);
+        }
+        setLoading(false);
     };
 
-    const handleDeleteQuest = (id) => {
-        if (window.confirm('Delete this quest?')) setQuests(quests.filter(q => q.id !== id));
+    const handleDeleteQuest = async (id) => {
+        if (!window.confirm('Delete this quest?')) return;
+        
+        setLoading(true);
+        const success = await db.deleteQuest(id);
+        
+        if (success) {
+            setQuests(quests.filter(q => q.id !== id));
+        }
+        setLoading(false);
     };
 
     const activeQuests = quests.filter(q => !q.completed);
     const completedQuests = quests.filter(q => q.completed);
-    const totalXPEarned = completedQuests.reduce((sum, q) => sum + q.xpReward, 0);
-    const totalXPAvailable = activeQuests.reduce((sum, q) => sum + q.xpReward, 0);
+    const totalXPEarned = completedQuests.reduce((sum, q) => sum + q.xp_reward, 0);
+    const totalXPAvailable = activeQuests.reduce((sum, q) => sum + q.xp_reward, 0);
 
     const displayedQuests = activeTab === 'active' ? activeQuests : completedQuests;
 
@@ -153,8 +183,8 @@ const QuestsPage = () => {
                                     key={quest.id}
                                     title={quest.title}
                                     description={quest.description}
-                                    xpReward={quest.xpReward}
-                                    difficulty={quest.difficulty}
+                                    xpReward={quest.xp_reward}
+                                    difficulty={quest.difficulty.toLowerCase()}
                                     completed={quest.completed}
                                     onToggle={() => handleToggleQuest(quest.id)}
                                     onDelete={() => handleDeleteQuest(quest.id)}
@@ -205,9 +235,9 @@ const QuestsPage = () => {
                                         onChange={(e) => setNewQuest({ ...newQuest, difficulty: e.target.value })}
                                         className="w-full px-4 py-2.5 bg-background border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                                     >
-                                        <option value="easy">Easy</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="hard">Hard</option>
+                                        <option value="Easy">Easy</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="Hard">Hard</option>
                                     </select>
                                 </div>
                                 <div>

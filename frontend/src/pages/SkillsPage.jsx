@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import { Target, Brain, Heart, BookOpen, Palette, Users, Zap, TrendingUp } from 'lucide-react';
 
@@ -41,25 +42,40 @@ const enrichSkills = (rawSkills) => rawSkills.map(skill => {
 const SkillsPage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
-    const [skills] = useState(enrichSkills(DEFAULT_SKILLS));
+    const [skills, setSkills] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchSkills = useCallback(async (userId) => {
+        setLoading(true);
+        const skillsData = await db.getSkills(userId);
+        setSkills(enrichSkills(skillsData));
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { navigate('/login'); return; }
             setUser(session.user);
+            await fetchSkills(session.user.id);
         };
         checkUser();
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!session) navigate('/login');
-            else setUser(session.user);
+            else {
+                setUser(session.user);
+                // Only refetch if user ID changed
+                if (session.user.id !== user?.id) {
+                    fetchSkills(session.user.id);
+                }
+            }
         });
         return () => subscription?.unsubscribe();
-    }, [navigate]);
+    }, [navigate, user?.id, fetchSkills]);
 
-    const totalLevel = skills.reduce((sum, s) => sum + s.level, 0);
-    const averageLevel = skills.length > 0 ? (totalLevel / skills.length).toFixed(1) : 0;
-    const highestSkill = skills.length > 0 ? skills.reduce((max, s) => s.level > max.level ? s : max) : null;
+    const totalLevel = useMemo(() => skills.reduce((sum, s) => sum + s.level, 0), [skills]);
+    const averageLevel = useMemo(() => skills.length > 0 ? (totalLevel / skills.length).toFixed(1) : 0, [skills, totalLevel]);
+    const highestSkill = useMemo(() => skills.length > 0 ? skills.reduce((max, s) => s.level > max.level ? s : max) : null, [skills]);
 
     return (
         <div className="flex min-h-screen bg-background">

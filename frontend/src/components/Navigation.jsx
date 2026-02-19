@@ -15,7 +15,12 @@ import {
   Camera,
   Loader2,
   Trophy,
+  Upload,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import ProfilePreview from "./ProfilePreview";
+import * as db from "../lib/database";
+import { useEffect } from "react";
 
 const navItems = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -32,38 +37,69 @@ export default function Navigation() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [stats, setStats] = useState({ habitsCount: 0, bestStreak: 0 });
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const { user, profile, updateAvatarUrl } = useUserProfile() ?? {};
   const avatarUrl = profile?.avatar_url ?? null;
   const displayName = profile?.display_name || user?.email?.split("@")[0] || "Adventurer";
   const email = user?.email || "";
 
+  useEffect(() => {
+    if (user?.id) {
+      db.getHabits(user.id).then(habits => {
+        const bestStreak = habits.reduce((max, h) => Math.max(max, h.longest_streak ?? h.streak ?? 0), 0);
+        setStats({ habitsCount: habits.length, bestStreak });
+      });
+    }
+  }, [user?.id]);
+
   const handleAvatarClick = () => {
-    if (!uploading) fileInputRef.current?.click();
+    setPreviewUrl(avatarUrl);
+    setShowUploadModal(true);
   };
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
     if (file.size > 5 * 1024 * 1024) { alert("Image must be under 5MB."); return; }
+    
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setSelectedFile(file);
+  };
+
+  const confirmUpload = async () => {
+    if (!selectedFile || !user) return;
     setUploading(true);
     try {
       const filePath = `${user.id}/avatar`;
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true, contentType: file.type });
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, selectedFile, { upsert: true, contentType: selectedFile.type });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath);
       const urlWithBust = `${publicUrl}?t=${Date.now()}`;
       const { error: dbError } = await supabase.from("user_profiles").update({ avatar_url: urlWithBust }).eq("id", user.id);
       if (dbError) console.warn("Could not save avatar URL:", dbError.message);
       updateAvatarUrl?.(urlWithBust);
+      setShowUploadModal(false);
+      setPreviewUrl(null);
+      setSelectedFile(null);
     } catch (err) {
       console.error("Avatar upload failed:", err);
       alert(`Upload failed: ${err.message}`);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const cancelUpload = () => {
+    setShowUploadModal(false);
+    setPreviewUrl(null);
+    setSelectedFile(null);
   };
 
   return (
@@ -122,14 +158,16 @@ export default function Navigation() {
         </nav>
 
         {user && (
-          <div className="mt-4 pt-4 border-t border-sidebar-border">
+          <div className="mt-4 pt-4 border-t border-sidebar-border relative">
             <div
               className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group"
               onClick={() => navigate("/profile")}
+              onMouseEnter={() => setShowPreview(true)}
+              onMouseLeave={() => setShowPreview(false)}
             >
               <div className="relative flex-shrink-0">
                 <div
-                  className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-primary/30 group-hover:ring-primary/60"
+                  className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-primary/30 group-hover:ring-primary/60 relative"
                   onClick={(e) => { e.stopPropagation(); handleAvatarClick(); }}
                 >
                   {avatarUrl ? (
@@ -137,6 +175,11 @@ export default function Navigation() {
                   ) : (
                     <div className="w-full h-full bg-primary/20 flex items-center justify-center">
                       <User className="w-4 h-4 text-primary" />
+                    </div>
+                  )}
+                  {uploading && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
                     </div>
                   )}
                 </div>
@@ -152,6 +195,13 @@ export default function Navigation() {
                 <p className="text-xs text-muted-foreground truncate leading-tight">{email}</p>
               </div>
             </div>
+
+            <ProfilePreview 
+              profile={profile} 
+              user={user} 
+              stats={stats} 
+              isOpen={showPreview} 
+            />
           </div>
         )}
       </aside>
@@ -191,6 +241,82 @@ export default function Navigation() {
       </nav>
 
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+
+      {/* Image Preview Modal */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={cancelUpload}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden z-20"
+            >
+              <div className="p-6 text-center">
+                <h3 className="text-xl font-black text-foreground mb-1">
+                  {selectedFile ? 'Preview New Avatar' : 'Update Avatar'}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-6">
+                  {selectedFile ? 'Looking good!' : 'Click upload to select an image'}
+                </p>
+
+                <div className="relative w-48 h-48 mx-auto mb-8">
+                  <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-primary/30 shadow-2xl bg-muted shrink-0">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User className="w-20 h-20 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {!selectedFile ? (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-black hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload Image
+                    </button>
+                  ) : (
+                    <button
+                      onClick={confirmUpload}
+                      disabled={uploading}
+                      className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-black hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                    >
+                      {uploading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Confirm
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={cancelUpload}
+                    disabled={uploading}
+                    className="w-full px-4 py-2.5 rounded-xl border border-border text-foreground text-sm font-bold hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

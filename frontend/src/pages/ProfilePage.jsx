@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
 import * as db from '../lib/database';
 import Navigation from '../components/Navigation';
 import XPBar from '../components/XPBar';
-import { User, Mail, Trophy, Target, Flame, LogOut, Shield, Camera, Loader2 } from 'lucide-react';
+import { User, Mail, Trophy, Target, Flame, LogOut, Shield, Camera, Loader2, Edit2, Check, X, Upload } from 'lucide-react';
 import SkillRadarChart from '../components/SkillRadarChart';
 import { useUserProfile } from '../context/UserProfileContext';
 
@@ -26,7 +27,14 @@ const ProfilePage = () => {
     const [stats, setStats] = useState({ habitsCount: 0, bestStreak: 0, questsCompleted: 0, focusCount: 0 });
 
     // Read from shared context — no local fetch needed
-    const { user, profile, updateAvatarUrl } = useUserProfile() ?? {};
+    const { user, profile, updateAvatarUrl, updateDisplayName } = useUserProfile() ?? {};
+    
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [updatingName, setUpdatingName] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [showUploadModal, setShowUploadModal] = useState(false);
 
     // Fetch skills + habits + quests in parallel — single round-trip batch
     const fetchProfileData = useCallback(async (userId) => {
@@ -86,15 +94,29 @@ const ProfilePage = () => {
         totalXP: profile?.total_xp ?? 0,
     }), [profile]);
 
-    const handleAvatarUpload = async (e) => {
+    const handleAvatarClick = () => {
+        setPreviewUrl(avatarUrl);
+        setShowUploadModal(true);
+    };
+
+    const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (!file || !user) return;
         if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
         if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB.'); return; }
+        
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+        setSelectedFile(file);
+    };
+
+    const confirmUpload = async () => {
+        if (!selectedFile || !user) return;
+        
         setUploading(true);
         try {
             const filePath = `${user.id}/avatar`;
-            const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true, contentType: file.type });
+            const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, selectedFile, { upsert: true, contentType: selectedFile.type });
             if (uploadError) throw uploadError;
             const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
             const urlWithBust = `${publicUrl}?t=${Date.now()}`;
@@ -103,21 +125,51 @@ const ProfilePage = () => {
                 .update({ avatar_url: urlWithBust })
                 .eq('id', user.id);
             if (dbError) console.warn('Could not save avatar URL:', dbError.message);
-            // Update context so sidebar also reflects new avatar instantly
             updateAvatarUrl?.(urlWithBust);
+            setShowUploadModal(false);
+            setPreviewUrl(null);
+            setSelectedFile(null);
         } catch (err) {
             console.error('Avatar upload failed:', err);
             const msg = err?.message || err?.error_description || JSON.stringify(err);
             alert(`Upload failed: ${msg}`);
         } finally {
             setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
         }
+    };
+
+    const cancelUpload = () => {
+        setShowUploadModal(false);
+        setPreviewUrl(null);
+        setSelectedFile(null);
     };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
+    };
+
+    const handleStartEdit = () => {
+        setNewName(displayName);
+        setIsEditingName(true);
+    };
+
+    const handleSaveName = async () => {
+        if (!newName.trim() || newName === displayName) {
+            setIsEditingName(false);
+            return;
+        }
+        setUpdatingName(true);
+        try {
+            const { error } = await updateDisplayName(newName.trim());
+            if (error) throw error;
+            setIsEditingName(false);
+        } catch (err) {
+            console.error('Failed to update name:', err);
+            alert('Failed to update display name');
+        } finally {
+            setUpdatingName(false);
+        }
     };
 
 
@@ -150,8 +202,15 @@ const ProfilePage = () => {
                             <div className="bg-card border border-border rounded-xl p-5 md:p-6 text-center shadow-sm">
                                 {/* Avatar with upload */}
                                 <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto mb-4">
-                                    <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-primary/20">
-                                        {avatarUrl ? (
+                                    <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-primary/20 relative">
+                                        {previewUrl ? (
+                                            <>
+                                                <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-[2px]">
+                                                    <span className="bg-primary text-primary-foreground text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg uppercase tracking-wider">Preview</span>
+                                                </div>
+                                            </>
+                                        ) : avatarUrl ? (
                                             <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full bg-primary/20 flex items-center justify-center">
@@ -161,10 +220,10 @@ const ProfilePage = () => {
                                     </div>
                                     {/* Camera button */}
                                     <button
-                                        onClick={() => fileInputRef.current?.click()}
+                                        onClick={handleAvatarClick}
                                         disabled={uploading}
                                         className="absolute bottom-0 right-0 w-7 h-7 md:w-8 md:h-8 bg-primary rounded-full flex items-center justify-center hover:opacity-90 transition shadow-lg"
-                                        title="Upload profile photo"
+                                        title="Change profile photo"
                                     >
                                         {uploading ? (
                                             <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary-foreground animate-spin" />
@@ -172,9 +231,52 @@ const ProfilePage = () => {
                                             <Camera className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary-foreground" />
                                         )}
                                     </button>
-                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                                 </div>
-                                <h2 className="text-lg font-bold text-foreground mb-1 leading-tight">{username}</h2>
+                                
+                                {isEditingName ? (
+                                    <div className="flex items-center justify-center gap-2 mb-1 px-4">
+                                        <input
+                                            type="text"
+                                            value={newName}
+                                            onChange={(e) => setNewName(e.target.value)}
+                                            className="w-full bg-background border border-primary/30 rounded px-2 py-1 text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                                            autoFocus
+                                            disabled={updatingName}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveName();
+                                                if (e.key === 'Escape') setIsEditingName(false);
+                                            }}
+                                        />
+                                        <button 
+                                            onClick={handleSaveName}
+                                            disabled={updatingName}
+                                            className="p-1 hover:bg-primary/10 rounded-full text-primary transition-colors"
+                                        >
+                                            {updatingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                        </button>
+                                        <button 
+                                            onClick={() => setIsEditingName(false)}
+                                            disabled={updatingName}
+                                            className="p-1 hover:bg-destructive/10 rounded-full text-destructive transition-colors"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2 mb-1 group relative">
+                                        {/* Invisible spacer to perfectly center the text, matching the width of the edit button package */}
+                                        <div className="w-8 invisible" aria-hidden="true" />
+                                        <h2 className="text-xl font-black text-center text-foreground leading-tight">{username}</h2>
+                                        <button 
+                                            onClick={handleStartEdit}
+                                            className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary"
+                                            title="Edit name"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
                                 <p className="text-[10px] md:text-xs text-muted-foreground flex items-center justify-center gap-1 mb-4">
                                     <Mail className="w-3 h-3" />
                                     {user?.email || 'user@example.com'}
@@ -284,6 +386,81 @@ const ProfilePage = () => {
                 </div>
             </main>
 
+            {/* Image Preview Modal */}
+            <AnimatePresence>
+                {showUploadModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={cancelUpload}
+                            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden z-10"
+                        >
+                            <div className="p-6 text-center">
+                                <h3 className="text-xl font-black text-foreground mb-1">
+                                    {selectedFile ? 'Preview New Avatar' : 'Update Avatar'}
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-6">
+                                    {selectedFile ? 'Looking good!' : 'Click upload to select an image'}
+                                </p>
+
+                                <div className="relative w-48 h-48 mx-auto mb-8">
+                                    <div className="w-full h-full rounded-full overflow-hidden ring-4 ring-primary/30 shadow-2xl bg-muted shrink-0">
+                                        {previewUrl ? (
+                                            <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <User className="w-20 h-20 text-muted-foreground" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {!selectedFile ? (
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-black hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            Upload Image
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={confirmUpload}
+                                            disabled={uploading}
+                                            className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-black hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                                        >
+                                            {uploading ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <Check className="w-4 h-4" />
+                                                    Confirm
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={cancelUpload}
+                                        disabled={uploading}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-border text-foreground text-sm font-bold hover:bg-muted transition-colors disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

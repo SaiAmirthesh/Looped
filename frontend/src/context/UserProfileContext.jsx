@@ -102,8 +102,30 @@ export function UserProfileProvider({ children }) {
     });
   }, []);
 
+  const updateDisplayName = useCallback(async (newDisplayName) => {
+    if (!user) return { error: 'No user logged in' };
+    
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ display_name: newDisplayName })
+      .eq('id', user.id);
+
+    if (!error) {
+      setProfile(prev => prev ? { ...prev, display_name: newDisplayName } : { display_name: newDisplayName });
+    }
+    return { error };
+  }, [user]);
+
   return (
-    <UserProfileContext.Provider value={{ user, profile, fetchProfile, updateAvatarUrl, refreshProfile, applyXpToProfile }}>
+    <UserProfileContext.Provider value={{ 
+      user, 
+      profile, 
+      fetchProfile, 
+      updateAvatarUrl, 
+      refreshProfile, 
+      applyXpToProfile,
+      updateDisplayName 
+    }}>
       {children}
     </UserProfileContext.Provider>
   );

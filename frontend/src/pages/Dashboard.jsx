@@ -123,7 +123,7 @@ const Dashboard = () => {
 
     // Calculate memoized values (move before early returns)
     const habitsCompleteCount = useMemo(() => dailyHabits.filter(h => h.completed_today).length, [dailyHabits]);
-    const username = user?.email?.split('@')[0] || 'Adventurer';
+    const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Adventurer';
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -149,7 +149,7 @@ const Dashboard = () => {
                 <div className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-border" style={{ backgroundColor: 'var(--background)' }}>
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Dashboard</h1>
-                        <p className="hidden md:block text-sm text-muted-foreground">Welcome back, <span className="text-primary font-medium">{username}</span></p>
+                        <p className="hidden md:block text-sm text-muted-foreground">Welcome back, <span className="text-primary font-medium">{displayName}</span></p>
                     </div>
                     <button
                         onClick={handleLogout}

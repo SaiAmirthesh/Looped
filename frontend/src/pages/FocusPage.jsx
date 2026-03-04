@@ -15,6 +15,10 @@ const FocusPage = () => {
     const [sessionType, setSessionType] = useState('focus');
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
     const [currentSessionId, setCurrentSessionId] = useState(null);
+    const [customMinutes, setCustomMinutes] = useState(null);
+    const [customSeconds, setCustomSeconds] = useState(null);
+    const [showCustomInput, setShowCustomInput] = useState(false);
+    const [totalDuration, setTotalDuration] = useState(25 * 60);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -49,6 +53,7 @@ const FocusPage = () => {
                 if (seconds === 0) {
                     if (minutes === 0) {
                         setIsRunning(false);
+                        await playAlarm();
                         // Complete the focus session and award XP if it's a focus session
                         if (sessionType === 'focus' && currentSessionId && user) {
                             const duration = sessionType === 'focus' ? 25 : sessionType === 'short-break' ? 5 : 15;
@@ -71,6 +76,51 @@ const FocusPage = () => {
         return () => clearInterval(interval);
     }, [isRunning, minutes, seconds, sessionType, currentSessionId, user]);
 
+    const playAlarm = async () => {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Resume the audio context if it's suspended (required by modern browsers)
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            
+            const now = audioContext.currentTime;
+            const alarmDuration = 1.5;
+            
+            // Create alarm-like pulsing sound
+            for (let i = 0; i < 3; i++) {
+                const startTime = now + (i * 0.4);
+                
+                // Low frequency pulse
+                const osc1 = audioContext.createOscillator();
+                const osc2 = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Use square waves for harsh alarm sound
+                osc1.type = 'square';
+                osc2.type = 'square';
+                
+                osc1.frequency.value = 600;
+                osc2.frequency.value = 900;
+                
+                gainNode.gain.setValueAtTime(0.4, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+                
+                osc1.start(startTime);
+                osc2.start(startTime);
+                osc1.stop(startTime + 0.3);
+                osc2.stop(startTime + 0.3);
+            }
+        } catch (error) {
+            console.log('Alarm sound could not be played:', error);
+        }
+    };
+
     const handleStart = () => setIsRunning(true);
     const handlePause = () => setIsRunning(false);
     const handleReset = () => {
@@ -81,11 +131,31 @@ const FocusPage = () => {
     const switchSession = (type) => {
         setSessionType(type);
         setIsRunning(false);
-        setMinutes(type === 'focus' ? 25 : type === 'short-break' ? 5 : 15);
+        const duration = type === 'focus' ? 25 : type === 'short-break' ? 5 : 15;
+        setMinutes(duration);
         setSeconds(0);
+        setTotalDuration(duration * 60);
+        setShowCustomInput(false);
     };
 
-    const totalSecs = sessionType === 'focus' ? 25 * 60 : sessionType === 'short-break' ? 5 * 60 : 15 * 60;
+    const applyCustomTime = () => {
+        const mins = customMinutes !== null ? Math.max(0, parseInt(customMinutes) || 0) : minutes;
+        const secs = customSeconds !== null ? Math.max(0, Math.min(59, parseInt(customSeconds) || 0)) : seconds;
+        setMinutes(mins);
+        setSeconds(secs);
+        setTotalDuration(mins * 60 + secs);
+        setCustomMinutes(null);
+        setCustomSeconds(null);
+        setShowCustomInput(false);
+    };
+
+    const resetCustomInput = () => {
+        setCustomMinutes(null);
+        setCustomSeconds(null);
+        setShowCustomInput(false);
+    };
+
+    const totalSecs = totalDuration;
     const progress = ((totalSecs - (minutes * 60 + seconds)) / totalSecs) * 100;
     const r = 110;
     const circumference = 2 * Math.PI * r;
@@ -169,6 +239,63 @@ const FocusPage = () => {
                                     <span className="text-xs opacity-60">{duration}</span>
                                 </button>
                             ))}
+                        </div>
+
+                        {/* Custom Time Input */}
+                        <div className="bg-card border border-border rounded-xl p-4">
+                            <button
+                                onClick={() => setShowCustomInput(!showCustomInput)}
+                                className="w-full text-left text-sm font-semibold text-foreground hover:text-primary transition flex items-center justify-between"
+                            >
+                                <span>Customize Time</span>
+                                <span className="text-xs text-muted-foreground">{showCustomInput ? '▼' : '▶'}</span>
+                            </button>
+                            {showCustomInput && (
+                                <div className="mt-4 space-y-3">
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <label className="text-xs text-muted-foreground block mb-1">Minutes</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="999"
+                                                value={customMinutes !== null ? customMinutes : minutes}
+                                                onChange={(e) => setCustomMinutes(e.target.value)}
+                                                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-center"
+                                                disabled={isRunning}
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-xs text-muted-foreground block mb-1">Seconds</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="59"
+                                                value={customSeconds !== null ? customSeconds : seconds}
+                                                onChange={(e) => setCustomSeconds(e.target.value)}
+                                                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-center"
+                                                disabled={isRunning}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={applyCustomTime}
+                                            disabled={isRunning}
+                                            className="flex-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+                                        >
+                                            Apply
+                                        </button>
+                                        <button
+                                            onClick={resetCustomInput}
+                                            disabled={isRunning}
+                                            className="flex-1 px-3 py-2 border border-border rounded-lg font-semibold text-sm hover:bg-muted transition disabled:opacity-50 text-foreground"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Timer Card — ElectricBorder when running */}
